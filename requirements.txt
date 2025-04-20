@@ -1,0 +1,36 @@
+# Dependencias necesarias para el proyecto
+
+# Para comunicación de red, hilos y colas (integradas en Python estándar)
+socket
+threading
+queue
+json
+
+# Para la interfaz gráfica (integrada en Python estándar)
+tkinter
+
+# Para expresiones regulares (integrada en Python estándar)
+re
+
+# Para manejo de archivos CSV (integrada en Python estándar)
+csv
+
+# Otras librerías útiles (integradas en Python estándar)
+time
+os
+datetime
+
+# No hay librerías externas específicas necesarias para el esqueleto inicial
+# Si decides usar librerías de terceros en el futuro, añádelas aquí.
+# Ejemplo: pandas (si quieres un manejo de datos CSV más avanzado), matplotlib (para gráficos)
+
+# Si usas la versión de Tkinter con soporte para widgets temáticos (ttk),
+# no necesitas instalar nada extra, está incluido.
+
+# Lista de dependencias explícitas (generalmente, si no son de la stdlib)
+# Aunque para este proyecto específico con las librerías base no hay ninguna externa,
+# la dejamos para buenas prácticas.
+
+# Ejemplo (si necesitaras algo externo):
+# requests==2.26.0
+# some_other_lib==1.0.0
