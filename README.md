@@ -12,18 +12,18 @@ Este proyecto implementa un sistema distribuido simple basado en una arquitectur
 El directorio `src/` consta de dos programas principales:
 
 1.  **Servidor (`server.py`):** 
-	2. Programa CLI
-	3. Gestiona eventos y las suscripciones
-	4. dispara triggers
-	5. Configura no. de threads a usar
-5.  **Cliente (`client_gui.py`):** 
-	6. Aplicación GUI
-	7. Se conecta al servidor mediante una IP y puerto
-	8. Opcion de suscribirse/desuscribirse a eventos
-	9. Opcion de escoger el algoritmo que quieras
-	10. Recibe triggers del server
-	11. Procesa archivos `.txt`
-	12. Visualiza el estado del procesamiento, las métricas de los procesos y el resultado de la extracción de datos en un archivo CSV.
+	1. Programa CLI
+	2. Gestiona eventos y las suscripciones
+	3. dispara triggers
+	4. Configura no. de threads a usar
+2.  **Cliente (`client_gui.py`):** 
+	1. Aplicación GUI
+	2. Se conecta al servidor mediante una IP y puerto
+	3. Opcion de suscribirse/desuscribirse a eventos
+	4. Opcion de escoger el algoritmo que quieras
+	5. Recibe triggers del server
+	6. Procesa archivos `.txt`
+	7. Visualiza el estado del procesamiento, las métricas de los procesos y el resultado de la extracción de datos en un archivo CSV.
 
 ## Estructura del Proyecto
 
