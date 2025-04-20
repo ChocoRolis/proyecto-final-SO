@@ -1,6 +1,8 @@
-# Lista de Tareas Pendientes y Mejoras
+# Lista de Tareas Pendientes 
 
-Este documento lista las funcionalidades planificadas, los arreglos de bugs y las mejoras que aún deben implementarse o considerarse para este proyecto. Si vas a trabajar en alguna de estas tareas, por favor, crea una rama y un Pull Request siguiendo las pautas en [`CONTRIBUTING.md`](CONTRIBUTING.md). Idealmente, añade el número de la tarea (si se convierte en una "Issue" en el repositorio) al título de tu rama y Pull Request (ej. `feat/implement-sjf-scheduler-3`).
+> **ESTA LISTA NO ES EXACTA. Aun estoy haciendo la oficial.**
+
+Aqui se muestran las funcionalidades que faltan, los arreglos de bugs y las mejoras que aún deben implementarse o considerarse para este proyecto.
 
 ## Funcionalidades Principales Pendientes
 

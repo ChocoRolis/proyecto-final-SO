@@ -1,49 +1,51 @@
-# Sistema de Eventos y Scheduling OS (Cliente-Servidor con GUI)
+# Proyecto Final Sistemas Operativos
 
-Este proyecto implementa un sistema distribuido simple basado en una arquitectura cliente-servidor para demostrar conceptos de sistemas operativos como la comunicación interprocesos, la gestión de eventos, la concurrencia simulada (con threads/forks) y algoritmos de scheduling (planificación de procesos).
+- Roberto Sandoval 598270
+- Mauricio Gonzalez 594595
+- Rolando Rivas 594276
+- Carlos Garcia 613250
 
-El proyecto consta de dos componentes principales:
+## Sistema de Eventos y Scheduling OS (Cliente-Servidor con GUI)
 
-1.  **Servidor (`server.py`):** Encargado de gestionar eventos y las suscripciones de los clientes a estos eventos. También es el punto de control para disparar eventos (triggers) y configurar parámetros como el número de "threads/forks" simulados que los clientes deben usar.
-2.  **Cliente (`client_gui.py`):** Una aplicación con interfaz gráfica que se conecta al servidor. Permite a los usuarios suscribirse/desuscribirse a eventos. Cuando un evento suscrito es disparado por el servidor, el cliente simula la ejecución de tareas (procesamiento de archivos `.txt`) utilizando diferentes algoritmos de scheduling configurables. La GUI visualiza el estado de la simulación, las métricas de los procesos y el resultado de la extracción de datos en un archivo CSV.
+Este proyecto implementa un sistema distribuido simple basado en una arquitectura cliente-servidor en la que se manejan eventos, suscripciones y otras opciones para los clientes, los cuales se encargaran de analizar archivos de texto con regex mientras organizan su carga de trabajo con algoritmos de scheduling.
 
-## Características
+El directorio `src/` consta de dos programas principales:
 
-*   **Comunicación Cliente-Servidor:** Utiliza sockets TCP para la comunicación en tiempo real.
-*   **Gestión de Eventos:** El servidor permite crear, eliminar y disparar eventos.
-*   **Suscripción de Clientes:** Los clientes pueden suscribirse a eventos específicos para recibir notificaciones.
-*   **Concurrencia Simulada:** El cliente simula la ejecución concurrente de tareas utilizando un número configurable de "threads/forks" (definido por el servidor).
-*   **Algoritmos de Scheduling:** Implementación de (actualmente FCFS, con planes para añadir SJF, RR, etc.) para planificar la ejecución simulada de tareas.
-*   **Procesamiento de Archivos:** Los clientes procesan archivos `.txt` utilizando expresiones regulares (Regex) al completar una tarea simulada.
-*   **Extracción y Almacenamiento de Datos:** Los datos extraídos se guardan en un archivo CSV por cada cliente.
-*   **Interfaz Gráfica (GUI):** Desarrollada con Tkinter, proporciona visualización del estado de la simulación, métricas de scheduling (PID, tiempos, promedios) y vista previa del CSV resultante.
+1.  **Servidor (`server.py`):** 
+	2. Programa CLI
+	3. Gestiona eventos y las suscripciones
+	4. dispara triggers
+	5. Configura no. de threads a usar
+5.  **Cliente (`client_gui.py`):** 
+	6. Aplicación GUI
+	7. Se conecta al servidor mediante una IP y puerto
+	8. Opcion de suscribirse/desuscribirse a eventos
+	9. Opcion de escoger el algoritmo que quieras
+	10. Recibe triggers del server
+	11. Procesa archivos `.txt`
+	12. Visualiza el estado del procesamiento, las métricas de los procesos y el resultado de la extracción de datos en un archivo CSV.
 
 ## Estructura del Proyecto
 
-├── README.md # Este archivo
-├── CONTRIBUTING.md # Guía para colaboradores
-├── TODO.md # Lista de tareas pendientes y mejoras
-├── requirements.txt # Dependencias de Python
-├── server.py # Código fuente del servidor
-├── client_gui.py # Código fuente de la aplicación cliente con GUI
-├── scheduler.py # (Propuesto) Módulo para algoritmos de scheduling
-├── process.py # (Propuesto) Módulo para la clase Process/Task
-├── text_files/ # Directorio para los archivos .txt a procesar (crear manualmente)
-└── output/ # Directorio donde los clientes guardarán los CSVs (creado por el cliente)
+├── README.md 		# Este archivo
+├── CONTRIBUTING.md 	# Guía para colaboradores
+├── TODO.md 		# Lista de tareas pendientes y mejoras
+├── requirements.txt 	# Dependencias de Python
+├── server.py 		# Código fuente del servidor
+├── client_gui.py 	# Código fuente de la aplicación cliente con GUI
+├── scheduler.py 	# (Propuesto) Módulo para algoritmos de scheduling
+├── process.py 		# (Propuesto) Módulo para la clase Process/Task
+└── text_files/ 	# Directorio para los archivos .txt a procesar (crear manualmente)
 
 
-**Nota:** Los archivos `scheduler.py` y `process.py` son propuestos para mejorar la modularidad, pero actualmente su funcionalidad puede estar integrada en `client_gui.py` en el esqueleto inicial.
-
-## Requisitos
-
-Necesitas tener Python instalado en tu sistema. Las librerías adicionales necesarias se listan en `requirements.txt`.
+**Nota:** Los archivos `scheduler.py` y `process.py` son propuestas para mejorar la modularidad, pero actualmente su funcionalidad puede estar integrada en `client_gui.py` en el esqueleto inicial.
 
 ## Instalación
 
 1.  Clona este repositorio:
     ```bash
-    git clone <URL_DEL_REPOSITORIO>
-    cd <NOMBRE_DEL_REPOSITORIO>
+    git clone https://github.com/ChocoRolis/proyecto-final-SO.git
+    cd proyecto-final-SO/
     ```
 2.  Instala las dependencias de Python usando pip:
     ```bash
@@ -55,17 +57,17 @@ Necesitas tener Python instalado en tu sistema. Las librerías adicionales neces
 1.  **Iniciar el Servidor:**
     Abre una terminal y ejecuta:
     ```bash
-    python server.py
+    python3 server.py
     ```
-    El servidor se iniciará y esperará conexiones. Puedes interactuar con él mediante comandos en su terminal (`add <evento>`, `trigger <evento>`, `set_threads <N>`, `list`, `exit`).
+    El servidor se iniciará y esperará conexiones. Comandos: (`add <evento>`, `trigger <evento>`, `set_threads <N>`, `list`, `exit`).
 
 2.  **Preparar Archivos `.txt`:**
-    Crea un directorio llamado `text_files` en la raíz del proyecto. Coloca dentro los archivos de texto (`.txt`) que quieres que los clientes procesen. Asegúrate de que contengan los patrones que definirás para la extracción con Regex.
+    Coloca en `text_files` los archivos de texto (`.txt`) que quieres que los clientes procesen. Asegúrate de que contengan los patrones que definirás para la extracción con Regex.
 
 3.  **Iniciar el Cliente(s):**
     Abre una o varias terminales (una por cada cliente que quieras simular) y ejecuta:
     ```bash
-    python client_gui.py
+    python3 client_gui.py
     ```
     Se abrirá la interfaz gráfica del cliente.
 
@@ -80,14 +82,10 @@ Necesitas tener Python instalado en tu sistema. Las librerías adicionales neces
 5.  **Detener el Servidor:**
     En la terminal del servidor, escribe `exit` y presiona Enter. Esto notificará a los clientes que el servidor se está cerrando.
 
-## Tareas Pendientes y Mejoras
+## Tareas Pendientes 
 
-Consulta el archivo [`TODO.md`](TODO.md) para ver la lista de funcionalidades a implementar y mejoras planeadas.
+Consulta el archivo to-do [`TODO.md`](TODO.md) para ver la lista de funcionalidades que faltan implementar.
 
 ## Contribuciones
 
-Si quieres contribuir a este proyecto (idealmente si eres un compañero de clase trabajando en la misma tarea), por favor, consulta el archivo [`CONTRIBUTING.md`](CONTRIBUTING.md) para conocer las pautas.
-
-## Licencia
-
-[Define tu licencia aquí, si aplica. Ej: MIT, sin licencia (Propiedad para la tarea), etc.]
+Revisa el archivo [`CONTRIBUTING.md`](CONTRIBUTING.md) para ver como contribuir codigo a este repo.
