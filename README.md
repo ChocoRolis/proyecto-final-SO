@@ -27,16 +27,20 @@ El directorio `src/` consta de dos programas principales:
 
 ## Estructura del Proyecto
 
-├── README.md 		# Este archivo
-├── CONTRIBUTING.md 	# Guía para colaboradores
-├── TODO.md 		# Lista de tareas pendientes y mejoras
-├── requirements.txt 	# Dependencias de Python
-├── server.py 		# Código fuente del servidor
-├── client_gui.py 	# Código fuente de la aplicación cliente con GUI
-├── scheduler.py 	# (Propuesto) Módulo para algoritmos de scheduling
-├── process.py 		# (Propuesto) Módulo para la clase Process/Task
-└── text_files/ 	# Directorio para los archivos .txt a procesar (crear manualmente)
-
+```text
+.
+├── README.md           # Este archivo
+├── CONTRIBUTING.md     # Guía para colaboradores
+├── TODO.md             # Lista de tareas pendientes y mejoras
+├── requirements.txt    # Dependencias de Python
+├── src/                # Directorio con el código fuente
+│   ├── server.py       #   Código fuente del servidor
+│   ├── client_gui.py   #   Código fuente de la aplicación cliente con GUI
+│   ├── scheduler.py    #   (Propuesto) Módulo para algoritmos de scheduling
+│   └── process.py      #   (Propuesto) Módulo para la clase Process/Task
+├── text_files/         # Directorio para los archivos .txt a procesar (crear manualmente)
+└── output/             # Directorio donde los clientes guardarán los CSVs (creado por el cliente)
+```
 
 **Nota:** Los archivos `scheduler.py` y `process.py` son propuestas para mejorar la modularidad, pero actualmente su funcionalidad puede estar integrada en `client_gui.py` en el esqueleto inicial.
 
