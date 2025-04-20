@@ -61,7 +61,7 @@ El directorio `src/` consta de dos programas principales:
 1.  **Iniciar el Servidor:**
     Abre una terminal y ejecuta:
     ```bash
-    python3 server.py
+    python3 src/server.py
     ```
     El servidor se iniciará y esperará conexiones. Comandos: (`add <evento>`, `trigger <evento>`, `set_threads <N>`, `list`, `exit`).
 
@@ -71,7 +71,7 @@ El directorio `src/` consta de dos programas principales:
 3.  **Iniciar el Cliente(s):**
     Abre una o varias terminales (una por cada cliente que quieras simular) y ejecuta:
     ```bash
-    python3 client_gui.py
+    python3 src/client_gui.py
     ```
     Se abrirá la interfaz gráfica del cliente.
 
