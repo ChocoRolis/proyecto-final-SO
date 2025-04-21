@@ -33,6 +33,7 @@ El directorio `src/` consta de dos programas principales:
 ├── CONTRIBUTING.md     # Guía para colaboradores
 ├── TODO.md             # Lista de tareas pendientes y mejoras
 ├── requirements.txt    # Dependencias de Python
+├── man/                # Manuales del código fuente
 ├── src/                # Directorio con el código fuente
 │   ├── server.py       #   Código fuente del servidor
 │   ├── client_gui.py   #   Código fuente de la aplicación cliente con GUI

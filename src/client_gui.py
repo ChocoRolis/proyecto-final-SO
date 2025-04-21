@@ -10,6 +10,11 @@ import re
 import csv
 import os
 from datetime import datetime
+from .process import Process
+from .scheduler import AVAILABLE_SCHEDULERS, SchedulerFCFS, SchedulerSJF, SchedulerRR # O SchedulerBase si la usas
+# (El . al inicio indica una importación relativa dentro del mismo paquete src).
+# Modificar la lógica donde creabas los diccionarios de procesos para usar la clase Process
+# Ajustar la lógica en simulation_step para llamar al método self.scheduler.schedule(...) pasándole los argumentos correctos (la ready_queue, self.simulation_time, self.running_processes, available_threads). El método schedule ahora te devolverá el proceso a ejecutar (o None).
 
 # --- Clases/Módulos Opcionales (podrían estar en process.py, scheduler.py) ---
 class Process:
@@ -395,21 +400,29 @@ class ClientApp:
 
     # --- Métodos de Simulación ---
     def change_scheduler(self, event=None):
+        # En ClientApp.change_scheduler
         algo = self.selected_algorithm.get()
-        if algo == "FCFS":
-            self.scheduler = SchedulerFCFS()
-        # elif algo == "SJF":
-        #     self.scheduler = SchedulerSJF() # Necesitas implementarla
-        # elif algo == "RR":
-        #     # Necesitarás un campo para el Quantum
-        #     quantum = 2 # Ejemplo, obtener de la GUI
-        #     self.scheduler = SchedulerRR(quantum) # Necesitas implementarla
+        scheduler_class = AVAILABLE_SCHEDULERS.get(algo)
+
+        if scheduler_class:
+            if algo == "RR":
+                # Necesitas obtener el quantum de alguna parte (GUI o fijo)
+                try:
+                    quantum_val = int(self.quantum_entry.get()) # Asume que tienes un entry para quantum
+                except ValueError:
+                    quantum_val = 2 # Valor por defecto
+                    messagebox.showwarning("Quantum Inválido", "Usando quantum por defecto de 2.")
+                self.scheduler = scheduler_class(quantum=quantum_val)
+            else:
+                self.scheduler = scheduler_class() # Instancia FCFS o SJF
+            self.status_bar.config(text=f"Algoritmo cambiado a {self.scheduler}")
+            print(f"Usando scheduler: {self.scheduler}")
         else:
-            messagebox.showerror("Error", f"Algoritmo {algo} no implementado.")
-            self.selected_algorithm.set("FCFS") # Volver al default
+            messagebox.showerror("Error", f"Algoritmo {algo} no encontrado/implementado.")
+            # Volver a un default seguro
+            self.selected_algorithm.set("FCFS")
             self.scheduler = SchedulerFCFS()
-        self.status_bar.config(text=f"Algoritmo cambiado a {algo}")
-        print(f"Usando scheduler: {self.scheduler.__class__.__name__}")
+
 
     def load_files_for_event(self, event_name):
         # Aquí decides qué archivos procesar. Ejemplo: todos los .txt en 'text_files/'
