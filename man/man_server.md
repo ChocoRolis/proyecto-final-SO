@@ -1,6 +1,3 @@
----
-
-```markdown
 # Documentación del Código Fuente: `src/server.py`
 
 Este documento explica el funcionamiento interno del script `server.py`, que actúa como el componente servidor en nuestro sistema de eventos y scheduling.
@@ -244,6 +241,3 @@ La comunicación entre cliente y servidor se basa en mensajes **JSON**. Cada men
 ## Conclusión
 
 El servidor utiliza un modelo basado en hilos para manejar concurrencia: un hilo principal escucha conexiones, un hilo maneja los comandos de la terminal, y se crea un hilo adicional por cada cliente conectado para gestionar su comunicación individual. El estado compartido (eventos, clientes, configuración) se mantiene en variables globales, y la comunicación se realiza mediante mensajes JSON sobre sockets TCP.
-```
-
----

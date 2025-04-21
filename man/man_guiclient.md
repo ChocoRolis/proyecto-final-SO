@@ -1,6 +1,3 @@
----
-
-```markdown
 # Documentación del Código Fuente: `src/client_gui.py`
 
 Este documento detalla el funcionamiento interno del script `client_gui.py`, que implementa la aplicación cliente con interfaz gráfica para el sistema de eventos y scheduling.
@@ -402,6 +399,3 @@ El cliente utiliza un modelo de concurrencia cuidadoso para mantener la GUI rece
 ## Conclusión
 
 `client_gui.py` es una aplicación compleja que integra múltiples conceptos: interfaz gráfica, red, simulación de algoritmos de SO, procesamiento de archivos y manejo seguro de concurrencia. La separación de tareas en hilos y el uso de una cola para la comunicación inter-hilos son clave para su funcionamiento correcto y responsivo. La clase `ClientApp` orquesta todas estas piezas, manteniendo el estado de la aplicación y respondiendo a eventos tanto del usuario como del servidor.
-```
-
----
