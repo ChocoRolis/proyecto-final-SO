@@ -33,12 +33,12 @@ El directorio `src/` consta de dos programas principales:
 ├── CONTRIBUTING.md     # Guía para colaboradores
 ├── TODO.md             # Lista de tareas pendientes y mejoras
 ├── requirements.txt    # Dependencias de Python
-├── man/                # Manuales del código fuente
-├── src/                # Directorio con el código fuente
+├── src/                # Directorio/Paquete con el código fuente
+│   ├── __init__.py     #   (Necesario, puede estar vacío) Indica a Python que 'src' es un paquete
 │   ├── server.py       #   Código fuente del servidor
-│   ├── client_gui.py   #   Código fuente de la aplicación cliente con GUI
-│   ├── scheduler.py    #   (Propuesto) Módulo para algoritmos de scheduling
-│   └── process.py      #   (Propuesto) Módulo para la clase Process/Task
+│   └── client_gui.py   #   Código fuente de la aplicación cliente con GUI
+│   ├── scheduler.py    #   Módulo para algoritmos de scheduling
+│   └── process.py      #   Módulo para la clase Process
 ├── text_files/         # Directorio para los archivos .txt a procesar (crear manualmente)
 └── output/             # Directorio donde los clientes guardarán los CSVs (creado por el cliente)
 ```
@@ -62,7 +62,7 @@ El directorio `src/` consta de dos programas principales:
 1.  **Iniciar el Servidor:**
     Abre una terminal y ejecuta:
     ```bash
-    python3 src/server.py
+    python3 -m src.server
     ```
     El servidor se iniciará y esperará conexiones. Comandos: (`add <evento>`, `trigger <evento>`, `set_threads <N>`, `list`, `exit`).
 
@@ -72,7 +72,7 @@ El directorio `src/` consta de dos programas principales:
 3.  **Iniciar el Cliente(s):**
     Abre una o varias terminales (una por cada cliente que quieras simular) y ejecuta:
     ```bash
-    python3 src/client_gui.py
+    python3 -m src.client_gui
     ```
     Se abrirá la interfaz gráfica del cliente.
 

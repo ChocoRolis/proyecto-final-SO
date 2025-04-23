@@ -15,7 +15,7 @@ from .scheduler import AVAILABLE_SCHEDULERS, SchedulerFCFS, SchedulerSJF, Schedu
 # (El . al inicio indica una importación relativa dentro del mismo paquete src).
 # Modificar la lógica donde creabas los diccionarios de procesos para usar la clase Process
 # Ajustar la lógica en simulation_step para llamar al método self.scheduler.schedule(...) pasándole los argumentos correctos (la ready_queue, self.simulation_time, self.running_processes, available_threads). El método schedule ahora te devolverá el proceso a ejecutar (o None).
-
+"""
 # --- Clases/Módulos Opcionales (podrían estar en process.py, scheduler.py) ---
 class Process:
     def __init__(self, pid, filename, arrival_time, burst_time):
@@ -42,7 +42,7 @@ class SchedulerFCFS:
         return None
 
 # ... otras clases de Scheduler (RR, SJF) ...
-
+"""
 # --- Lógica Principal de la Aplicación Tkinter ---
 class ClientApp:
     def __init__(self, root):
