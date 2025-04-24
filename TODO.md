@@ -4,7 +4,7 @@
 
 Aqui se muestran las funcionalidades que faltan, los arreglos de bugs y las mejoras que aún deben implementarse o considerarse para este proyecto.
 
-## Funcionalidades Principales Pendientes
+## Lo principal
 
 -   [ ] **Implementar Algoritmos de Scheduling Adicionales:**
     -   [ ] Scheduler SJF (Shortest Job First)
@@ -19,12 +19,12 @@ Aqui se muestran las funcionalidades que faltan, los arreglos de bugs y las mejo
     -   [ ] Afinar la lógica de asignación de procesos a los "threads" simulados en cada tick.
     -   [ ] Considerar posibles estados de proceso adicionales (ej. Waiting for I/O, aunque la tarea no lo pide explícitamente).
 
--   [ ] **Implementar Operaciones Regex Específicas:**
+-   [ ] **Regex**
     -   [ ] Definir y codificar los patrones Regex específicos para extraer los "datos o columnas a extraer de archivos .txt" según las instrucciones exactas de la tarea.
     -   [ ] Asegurar que los datos extraídos se mapean correctamente a las columnas del CSV.
     -   [ ] Actualizar `client_gui.py` para usar estos patrones específicos en `process_text_file_thread`.
 
--   [ ] **Mejorar Visualización de la GUI:**
+-   [ ] **GUI**
     -   [ ] Mejorar la visualización Gantt:
         -   [ ] Usar un `tkinter.Canvas` para dibujar barras que representen la ejecución de procesos en el tiempo para cada thread simulado.
         -   [ ] Mostrar PID y tiempo de ejecución dentro de las barras.
@@ -35,13 +35,8 @@ Aqui se muestran las funcionalidades que faltan, los arreglos de bugs y las mejo
     -   [ ] Mejorar la "Vista Previa CSV":
         -   [ ] Posiblemente usar otro `ttk.Treeview` para mostrar el CSV como una tabla estructurada en lugar de texto plano.
 
-## Tareas Secundarias y Mejoras
+## Tareas secundarias
 
--   [ ] **Manejo de Errores:**
-    -   [ ] Mejorar el manejo de errores de red (conexión perdida, etc.).
-    -   [ ] Manejar errores durante la lectura/escritura de archivos.
-    -   [ ] Manejar errores durante la ejecución de Regex.
-    -   [ ] Proporcionar feedback más útil al usuario a través de la GUI.
 -   [ ] **Configuración:**
     -   [ ] Permitir al cliente solicitar una configuración de threads/forks al servidor (si el servidor lo permite).
     -   [ ] Añadir configuración para la velocidad de simulación (`simulation_update_ms`).
@@ -52,7 +47,4 @@ Aqui se muestran las funcionalidades que faltan, los arreglos de bugs y las mejo
 -   [ ] **Documentación:**
     -   [ ] Añadir comentarios al código para explicar las partes complejas.
     -   [ ] Actualizar este `TODO.md` a medida que se completen tareas o surjan nuevas.
-    -   [ ] Documentar los patrones Regex utilizados.
--   [ ] **Modularización:**
-    -   [ ] Mover la lógica de los algoritmos de scheduling a `scheduler.py`.
-    -   [ ] Mover la definición de la clase `Process` a `process.py`.
+    -   [ ] Documentar jos patrones Regex utilizados.
