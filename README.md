@@ -52,10 +52,6 @@ El directorio `src/` consta de dos programas principales:
     git clone https://github.com/ChocoRolis/proyecto-final-SO.git
     cd proyecto-final-SO/
     ```
-2.  Instala las dependencias de Python usando pip:
-    ```bash
-    pip install -r requirements.txt
-    ```
 
 ## Uso
 
