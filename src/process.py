@@ -11,7 +11,7 @@ class Process:
     Representa una única tarea (generalmente asociada a un archivo .txt)
     que será gestionada por el planificador (scheduler).
     """
-    def __init__(self, pid: int, filename: str, arrival_time: int, burst_time: int):
+    def __init__(self, pid: int, filename: str, arrival_time: int, burst_time: int, priority: int = 0):
         """
         Inicializa un nuevo proceso.
 
@@ -20,6 +20,7 @@ class Process:
             filename (str): Nombre del archivo .txt asociado a esta tarea.
             arrival_time (int): Tiempo de llegada simulado del proceso a la cola Ready.
             burst_time (int): Tiempo total de CPU simulado requerido por el proceso.
+            priority (int): Prioridad del proceso.
         """
         self.pid = pid
         self.filename = filename
@@ -28,6 +29,7 @@ class Process:
 
         # --- Atributos para la simulación y métricas ---
         self.remaining_burst_time = burst_time # Tiempo de CPU que aún falta por ejecutar.
+        self.priority = priority      # Prioridad del proceso (si se usa un algoritmo basado en prioridades).
         self.start_time = -1          # Tiempo en que el proceso comienza a ejecutarse por primera vez. -1 si aún no ha empezado.
         self.completion_time = -1     # Tiempo en que el proceso termina su ejecución. -1 si no ha terminado.
         self.waiting_time = 0         # Tiempo total que el proceso pasa en la cola Ready esperando CPU.

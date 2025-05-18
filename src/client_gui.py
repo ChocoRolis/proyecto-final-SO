@@ -232,7 +232,7 @@ class ClientApp:
         )
         self.algo_combo = ttk.Combobox(
             sim_config_frame, textvariable=self.selected_algorithm_var,
-            values=list(AVAILABLE_SCHEDULERS.keys()), state="readonly", width=10
+            values=list(AVAILABLE_SCHEDULERS.keys()), state="readonly", width=12
         )
         self.algo_combo.grid(row=0, column=1, padx=5, pady=2)
         self.algo_combo.bind("<<ComboboxSelected>>", self.change_scheduler_sim)
@@ -687,6 +687,11 @@ class ClientApp:
                     quantum=quantum_val if quantum_val > 0 else 2
                 )
                 show_quantum = True
+            elif algo == "Priority_NP":
+                self.scheduler_sim = scheduler_class()
+                show_priority = True
+            elif algo == "HRRN":
+                self.scheduler_sim = scheduler_class()
             # elif algo in ["Priority_NP", "Priority_P"]: # Ejemplo
             #     self.scheduler_sim = scheduler_class()
             #     show_priority = True
@@ -742,7 +747,7 @@ class ClientApp:
                 filename = params["filename"]
                 arrival = int(params["arrival_var"].get())
                 burst = int(params["burst_var"].get())
-                # priority = int(params["priority_var"].get()) # Si se usa
+                priority = int(params["priority_var"].get()) # Si se usa
 
                 if burst <= 0:
                     msg = f"Ráfaga para '{filename}' debe ser positiva."
@@ -750,11 +755,10 @@ class ClientApp:
                     valid_input = False
                     break
                 
-                proc = Process(pid_sim, filename, arrival, burst) # Añadir priority si es necesario
+                proc = Process(pid_sim, filename, arrival, burst, priority) # Añadir priority si es necesario
                 self.processes_to_simulate.append(proc)
                 self.proc_tree_sim.insert("", tk.END, iid=str(pid_sim), values=(
-                     pid_sim, filename, proc.state, arrival, burst,
-                     "N/A", # Prioridad
+                     pid_sim, filename, proc.state, arrival, burst, priority,
                      burst, "N/A", "N/A", "N/A", "N/A"
                  ))
             except ValueError:

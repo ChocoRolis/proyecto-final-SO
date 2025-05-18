@@ -88,22 +88,34 @@ class SchedulerSJF(SchedulerBase):
         if not ready_queue:
             return None
 
-        # TODO: Implementar la lógica de SJF No Preemptivo
-        # 1. Encontrar el proceso en ready_queue con el menor `burst_time`.
-        #    - Puedes usar `min(ready_queue, key=lambda p: p.burst_time)`
-        # 2. Quitar ese proceso de la `ready_queue`.
-        # 3. Devolver el proceso seleccionado.
+        ready_queue.sort(key=lambda p: (p.burst_time, p.arrival_time))
+        return ready_queue.pop(0)
 
-        # Placeholder:
-        # best_process = min(ready_queue, key=lambda p: p.burst_time)
-        # ready_queue.remove(best_process)
-        # return best_process
 
-        print("SchedulerSJF: Método 'schedule' no implementado todavía.") # Placeholder
-        # Temporalmente, devolvemos el primero para evitar errores
-        if ready_queue:
-            return ready_queue.pop(0)
-        return None
+class SchedulerSRTF(SchedulerBase):
+    """
+    Algoritmo de Scheduling Shortest Remaining Time First (SRTF) - Versión Preemptiva de SJF.
+    """
+    def schedule(self, ready_queue: List[Process], current_time: int, running_processes: List[Process], available_threads: int) -> Optional[Process]:
+        """
+        Selecciona el proceso en la cola Ready con el menor tiempo de ráfaga restante (remaining_burst_time).
+        Si hay empate, desempata por arrival_time.
+
+        Args:
+            ready_queue: Lista de procesos Ready. Se modificará si se selecciona un proceso.
+            current_time: Tiempo actual.
+            running_processes: Procesos en ejecución.
+            available_threads: Threads libres.
+
+        Returns:
+            El proceso con el menor remaining_burst_time en la ready_queue, o None si está vacía.
+        """
+        if not ready_queue:
+            return None
+
+        # Ordena por remaining_burst_time y luego por arrival_time para desempatar
+        ready_queue.sort(key=lambda p: (p.remaining_burst_time, p.arrival_time))
+        return ready_queue.pop(0)
 
 
 class SchedulerRR(SchedulerBase):
@@ -143,32 +155,49 @@ class SchedulerRR(SchedulerBase):
         if not ready_queue:
             return None
 
-        # TODO: Implementar la lógica de RR
-        # 1. Simplemente toma el primer proceso de la cola (FIFO).
-        # 2. Quita ese proceso de la `ready_queue`.
-        # 3. Devuelve el proceso seleccionado.
-        #    (El bucle principal se encargará de limitar su tiempo de ejecución al quantum
-        #     y devolverlo a la cola si no ha terminado).
-
-        # Placeholder:
-        # process_to_run = ready_queue.pop(0)
-        # return process_to_run
-
-        print("SchedulerRR: Método 'schedule' no implementado todavía.") # Placeholder
-        # Temporalmente, devolvemos el primero para evitar errores
-        if ready_queue:
-             return ready_queue.pop(0)
-        return None
+        return ready_queue.pop(0)
 
     def __str__(self):
         return f"{self.__class__.__name__}(Quantum={self.quantum})"
 
+
+class SchedulerHRRN:
+    """High Response Ratio Next (HRRN) Scheduler."""
+    def schedule(self, ready_queue, current_time, running_processes, available_threads):
+        if not ready_queue:
+            return None
+
+        # Calcular el Response Ratio para cada proceso en la cola de listos
+        for process in ready_queue:
+            wait_time = current_time - process.arrival_time
+            response_ratio = (wait_time + process.burst_time) / process.burst_time
+            process.response_ratio = response_ratio
+
+        # Ordenar por mayor Response Ratio
+        ready_queue.sort(key=lambda p: p.response_ratio, reverse=True)
+
+        # Seleccionar el proceso con mayor Response Ratio
+        selected_process = ready_queue.pop(0)
+        return selected_process
+
+class SchedulerPriorityNP:
+    """Scheduler de Prioridad No Preemptiva (menor número = mayor prioridad)."""
+    def schedule(self, ready_queue, current_time, running_processes, available_threads):
+        if not ready_queue:
+            return None
+        # Selecciona el de mayor prioridad (menor número), desempata por llegada
+        ready_queue.sort(key=lambda p: (p.priority, p.arrival_time))
+        return ready_queue.pop(0)
+    
+    
 # --- Diccionario para acceder fácilmente a los schedulers por nombre ---
 AVAILABLE_SCHEDULERS = {
     "FCFS": SchedulerFCFS,
     "SJF": SchedulerSJF,
-    # "SRTF": SchedulerSRTF, # Si implementas preemptive SJF
+    "SRTF": SchedulerSRTF,
     "RR": SchedulerRR,
+    "HRRN": SchedulerHRRN,
+    "Priority_NP": SchedulerPriorityNP,
     # Añade aquí otros algoritmos que implementes
 }
 
