@@ -17,7 +17,6 @@ class ClientApp:
         self.root = root
         self.root.title("Cliente de Scheduling OS")
         self.root.geometry("1200x850")
-       
 
         self.client_socket = None
         self.connected = False
@@ -60,7 +59,6 @@ class ClientApp:
 
         self._create_widgets()
         self._setup_output_dir()
-        self.cargar_archivos_locales()
         self.root.after(100, self.check_message_queue)
 
     def _setup_output_dir(self):
@@ -70,24 +68,6 @@ class ClientApp:
             messagebox.showerror(
                 "Error Directorio", f"No se pudo crear 'output/': {e}"
             )
-
-    def cargar_archivos_locales(self):
-        carpeta = os.path.join("src", "text_files")
-        if not os.path.isdir(carpeta):
-            messagebox.showwarning("Archivos", f"No se encontró la carpeta: {carpeta}")
-            return
-
-        archivos = [f for f in os.listdir(carpeta) if f.endswith(".txt")]
-        archivos.sort()
-
-        if not archivos:
-            messagebox.showinfo("Archivos", "No se encontraron archivos .txt en la carpeta local.")
-            return
-
-        self.server_assigned_files = [os.path.join("src/text_files", f) for f in archivos]
-        self.display_file_selection_ui()
-
-
 
     def _create_widgets(self):
         # --- Sección Superior (Conexión, Config Cliente, Suscripción) ---

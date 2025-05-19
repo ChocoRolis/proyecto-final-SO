@@ -24,6 +24,3 @@
 # deberían listarse aquí con sus versiones, por ejemplo:
 # pandas==1.3.4
 # matplotlib==3.4.3
-# requests>=2.20
-# beautifulsoup4>=4.9
-
