@@ -10,11 +10,33 @@ import time
 import re
 import math
 import sys # Para sys.stdout.flush()
+from extractor_regex import parse_file_regex as parse_file
+
+
 
 # --- Configuración ---
 HOST = '127.0.0.1'
 PORT = 65432
-TEXT_FILES_DIR = 'text_files'
+import os
+
+TEXT_FILES_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'text_files'))
+print(f"[DEBUG] Buscando en ruta: {TEXT_FILES_DIR}")
+
+# Asegúrate de que la carpeta exista
+if not os.path.isdir(TEXT_FILES_DIR):
+    try:
+        os.makedirs(TEXT_FILES_DIR)
+        print(f"[DEBUG] Carpeta '{TEXT_FILES_DIR}' creada.")
+    except Exception as e:
+        print(f"[ERROR] No se pudo crear la carpeta '{TEXT_FILES_DIR}': {e}")
+        exit(1)
+else:
+    print(f"[DEBUG] Carpeta ya existe.")
+
+# Ahora sí, carga los archivos
+text_files = [f for f in os.listdir(TEXT_FILES_DIR) if f.endswith('.txt')]
+print(f"[DEBUG] Archivos encontrados: {text_files}")
+
 DEFAULT_CLIENT_CONFIG = {'mode': 'threads', 'count': 1}
 
 # --- Estado del Servidor (Protegido por Locks) ---
@@ -120,40 +142,42 @@ def handle_disconnect(client_socket):
         pass # El socket podría ya estar cerrado, es un error esperado
 
 
+
 def process_single_file_wrapper(filepath_tuple):
-    """Wrapper para process_single_file para ProcessPoolExecutor."""
     filepath = filepath_tuple[0]
     filename = os.path.basename(filepath)
 
     try:
-        with open(filepath, 'r', encoding='utf-8') as f:
-            content = f.read()
+        result_data = parse_file(filepath, pid="server")
 
-        # --- TU LÓGICA REGEX AQUÍ ---
-        emails = re.findall(
-            r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,7}\b', content
-        )
-        dates = re.findall(
-            r'\b(\d{2}/\d{2}/\d{4}|\d{4}-\d{2}-\d{2})\b', content
-        )
-        word_count = len(content.split())
-        # --- FIN LÓGICA REGEX ---
-
-        time.sleep(0.05) # Simular I/O o trabajo ligero
-
-        result_data = {
-            "emails_found": emails,
-            "dates_found": dates,
-            "word_count": word_count,
+        return {
+            "pid_server": os.getpid(),
+            "filename": filename,
+            "data": {
+                "emails_found": result_data.get("Emails", []),
+                "dates_found": result_data.get("Fechas", []),
+                "word_count": result_data.get("ConteoPalabras", 0)
+            },
+            "status": "success",
+            "error": ""
         }
-        return {"filename": filename, "data": result_data, "status": "success"}
 
     except FileNotFoundError:
-        return {"filename": filename, "error": "File not found.", "status": "error"}
-
+        return {
+            "pid_server": os.getpid(),
+            "filename": filename,
+            "data": {"emails_found": [], "dates_found": [], "word_count": 0},
+            "status": "error",
+            "error": "File not found."
+        }
     except Exception as e:
-        return {"filename": filename, "error": str(e), "status": "error"}
-
+        return {
+            "pid_server": os.getpid(),
+            "filename": filename,
+            "data": {"emails_found": [], "dates_found": [], "word_count": 0},
+            "status": "error",
+            "error": str(e)
+        }
 
 def manage_client_batch_processing():
     """

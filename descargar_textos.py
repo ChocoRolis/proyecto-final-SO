@@ -5,7 +5,7 @@ import requests
 from bs4 import BeautifulSoup
 
 URL_BASE = "https://ubiquitous.udem.edu/~raulms/Suecia/Museum/english_text_files/"
-CARPETA_DESTINO = "text_files"
+CARPETA_DESTINO = os.path.join(os.path.dirname(__file__), "..", "text_files")
 
 def descargar_txts():
     os.makedirs(CARPETA_DESTINO, exist_ok=True)
@@ -31,7 +31,7 @@ def descargar_txts():
         except Exception as e:
             print(f"[ERROR] No se pudo descargar {nombre}: {e}")
 
-    print(f"\n✅ {len(enlaces)} archivos descargados en ./{CARPETA_DESTINO}/")
+    print(f"\n✅ {len(enlaces)} archivos descargados en: {os.path.abspath(CARPETA_DESTINO)}")
 
 if __name__ == "__main__":
     descargar_txts()
