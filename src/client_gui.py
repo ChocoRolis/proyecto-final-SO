@@ -15,8 +15,11 @@ from .scheduler import AVAILABLE_SCHEDULERS, SchedulerFCFS, SchedulerRR, Schedul
 class ClientApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Cliente de Scheduling OS")
+        self.root.title("Sistema de Simulación de Scheduling OS")
         self.root.geometry("1200x850")
+        
+        # Configurar tema y estilo visual
+        self.setup_theme()
 
         self.client_socket = None
         self.connected = False
@@ -61,6 +64,277 @@ class ClientApp:
         self._setup_output_dir()
         self.root.after(100, self.check_message_queue)
 
+    def setup_theme(self):
+        """Configurar un tema personalizado para la GUI"""
+        # Paleta de colores moderna
+        self.root.configure(bg='#EFF5F9')
+        
+        # Colores principales
+        self.colors = {
+            'bg_main': '#EFF5F9',         # Fondo principal (azul muy claro)
+            'bg_frame': '#F8FAFC',        # Fondo de frames
+            'accent1': '#3498DB',         # Azul primario
+            'accent2': '#2980B9',         # Azul oscuro
+            'accent3': '#1ABC9C',         # Verde-azulado
+            'text_dark': '#2C3E50',       # Texto principal
+            'text_light': '#FFFFFF',      # Texto claro
+            'border': '#D6EAF8',          # Bordes
+            'warning': '#E74C3C',         # Rojo para advertencias
+            'success': '#27AE60',         # Verde para éxito
+            'header_bg': '#D6EAF8',       # Fondo para encabezados
+            'table_row_alt': '#F5F9FC',   # Color alternado para filas de tabla
+            'hover': '#C9E3F7'            # Color al pasar el mouse
+        }
+        
+        # Crear un estilo personalizado
+        style = ttk.Style()
+        style.theme_use('default')  # Comenzar desde una base limpia
+        
+        # Configuraciones generales
+        style.configure('.',
+            background=self.colors['bg_main'],
+            foreground=self.colors['text_dark'],
+            font=('Segoe UI', 9),
+            borderwidth=0
+        )
+        
+        # Frame principal y frames secundarios
+        style.configure('TFrame', background=self.colors['bg_main'])
+        style.configure('Card.TFrame',
+            background=self.colors['bg_frame'],
+            borderwidth=1,
+            relief="solid",
+            bordercolor=self.colors['border']
+        )
+        
+        # LabelFrames (marcos con título)
+        style.configure('TLabelframe', 
+            background=self.colors['bg_frame'],
+            bordercolor=self.colors['border'],
+            relief="solid",
+            borderwidth=1
+        )
+        style.configure('TLabelframe.Label', 
+            font=('Segoe UI', 10, 'bold'),
+            background=self.colors['header_bg'],
+            foreground=self.colors['text_dark'],
+            padding=(10, 5)
+        )
+        
+        # Botones - estilo por defecto con mejor contraste
+        style.configure('TButton',
+            background=self.colors['accent1'],
+            foreground='#FFFFFF',  # Blanco puro para el texto
+            font=('Segoe UI', 9, 'bold'),
+            padding=(10, 5),
+            borderwidth=0,
+            relief="flat"
+        )
+        style.map('TButton',
+            background=[('active', self.colors['accent2']), ('disabled', '#BDC3C7')],
+            foreground=[('disabled', '#FFFFFF')]  # Texto blanco incluso en estado deshabilitado
+        )
+        
+        # Botones específicos con alto contraste
+        style.configure('Connect.TButton',
+            background=self.colors['accent1'],
+            foreground='#FFFFFF'  # Blanco puro para contraste
+        )
+        style.map('Connect.TButton', 
+            background=[('active', self.colors['accent2'])],
+            foreground=[('active', '#FFFFFF')]  # Mantener texto blanco en hover
+        )
+        
+        style.configure('Disconnect.TButton',
+            background='#95A5A6',  # Gris
+            foreground='#FFFFFF'  # Blanco puro para contraste
+        )
+        style.map('Disconnect.TButton', 
+            background=[('active', '#7F8C8D')],  # Gris oscuro
+            foreground=[('active', '#FFFFFF')]  # Mantener texto blanco en hover
+        )
+        
+        style.configure('Action.TButton',
+            background=self.colors['accent1'],
+            foreground='#FFFFFF'  # Blanco puro para contraste
+        )
+        style.map('Action.TButton', 
+            background=[('active', self.colors['accent2'])],
+            foreground=[('active', '#FFFFFF')]  # Mantener texto blanco en hover
+        )
+        
+        # Botón de opciones - más sutil pero con mejor contraste
+        style.configure('Option.TButton',
+            background=self.colors['bg_frame'],
+            foreground=self.colors['text_dark'],  # Texto oscuro para contraste con fondo claro
+            borderwidth=1,
+            relief="solid",
+            bordercolor=self.colors['border']
+        )
+        style.map('Option.TButton',
+            background=[('active', self.colors['header_bg'])],
+            foreground=[('active', self.colors['text_dark'])]  # Mantener contraste en hover
+        )
+        
+        # Entradas
+        style.configure('TEntry', 
+            fieldbackground='white',
+            foreground=self.colors['text_dark'],
+            bordercolor=self.colors['border'],
+            lightcolor=self.colors['border'],
+            darkcolor=self.colors['border'],
+            borderwidth=1,
+            padding=5
+        )
+        style.map('TEntry',
+            fieldbackground=[('focus', 'white')],
+            bordercolor=[('focus', self.colors['accent1'])]
+        )
+        
+        # Spinbox
+        style.configure('TSpinbox',
+            fieldbackground='white',
+            foreground=self.colors['text_dark'],
+            bordercolor=self.colors['border'],
+            padding=5,
+            arrowsize=13
+        )
+        
+        # Labels
+        style.configure('TLabel',
+            background=self.colors['bg_main'],
+            foreground=self.colors['text_dark']
+        )
+        
+        style.configure('Header.TLabel',
+            font=('Segoe UI', 12, 'bold'),
+            foreground=self.colors['accent2'],
+            padding=10
+        )
+        
+        style.configure('Subtitle.TLabel',
+            font=('Segoe UI', 10, 'italic'),
+            foreground=self.colors['accent2']
+        )
+        
+        # Estado
+        style.configure('Status.TLabel',
+            background='#F8F9FA',
+            foreground=self.colors['text_dark'],
+            font=('Segoe UI', 9),
+            padding=8,
+            relief="sunken",
+            borderwidth=1
+        )
+        
+        style.configure('StatusInfo.TLabel',
+            background='#D6EAF8',
+            foreground=self.colors['accent2']
+        )
+        
+        style.configure('StatusWarning.TLabel',
+            background='#FDEBD0',
+            foreground='#E67E22'
+        )
+        
+        # Radiobutton
+        style.configure('TRadiobutton',
+            background=self.colors['bg_main'],
+            foreground=self.colors['text_dark'],
+            indicatorcolor='white',
+            indicatorbackground='white'
+        )
+        style.map('TRadiobutton',
+            background=[('active', self.colors['bg_main'])],
+            indicatorcolor=[('selected', self.colors['accent1'])]
+        )
+        
+        # Checkbox
+        style.configure('TCheckbutton',
+            background=self.colors['bg_main'],
+            foreground=self.colors['text_dark']
+        )
+        style.map('TCheckbutton',
+            background=[('active', self.colors['bg_main'])],
+            indicatorcolor=[('selected', self.colors['accent1'])]
+        )
+        
+        # Combobox
+        style.configure('TCombobox',
+            fieldbackground='white',
+            background='white',
+            foreground=self.colors['text_dark'],
+            arrowcolor=self.colors['accent1'],
+            bordercolor=self.colors['border'],
+            lightcolor=self.colors['border'],
+            darkcolor=self.colors['border'],
+            borderwidth=1
+        )
+        style.map('TCombobox',
+            fieldbackground=[('readonly', 'white')],
+            selectbackground=[('readonly', self.colors['accent1'])],
+            selectforeground=[('readonly', self.colors['text_light'])]
+        )
+        
+        # Pestañas
+        style.configure('TNotebook', 
+            background=self.colors['bg_main'],
+            tabmargins=[2, 5, 2, 0]
+        )
+        style.configure('TNotebook.Tab',
+            background=self.colors['bg_frame'],
+            foreground=self.colors['text_dark'],
+            padding=[15, 5],
+            font=('Segoe UI', 9)
+        )
+        style.map('TNotebook.Tab',
+            background=[('selected', self.colors['accent1']), ('active', self.colors['hover'])],
+            foreground=[('selected', self.colors['text_light']), ('active', self.colors['text_dark'])],
+            expand=[('selected', [1, 1, 1, 0])]
+        )
+        
+        # Scrollbar
+        style.configure('TScrollbar',
+            background=self.colors['bg_frame'],
+            troughcolor=self.colors['bg_main'],
+            arrowcolor=self.colors['text_dark'],
+            bordercolor=self.colors['border']
+        )
+        
+        # Treeview (tablas)
+        style.configure('Treeview',
+            background='white',
+            foreground=self.colors['text_dark'],
+            fieldbackground='white',
+            bordercolor=self.colors['border'],
+            borderwidth=1,
+            padding=0
+        )
+        style.configure('Treeview.Heading',
+            background=self.colors['header_bg'],
+            foreground=self.colors['text_dark'],
+            relief="flat",
+            font=('Segoe UI', 9, 'bold'),
+            padding=5
+        )
+        style.map('Treeview',
+            background=[('selected', self.colors['accent1'])],
+            foreground=[('selected', self.colors['text_light'])]
+        )
+        
+        # Separator
+        style.configure('TSeparator', 
+            background=self.colors['border']
+        )
+        
+        # Estilos personalizados para canvas
+        self.canvas_style = {
+            'bg': 'white',
+            'border_width': 1,
+            'border_color': self.colors['border'],
+            'highlight_color': self.colors['accent1']
+        }
+
     def _setup_output_dir(self):
         try:
             os.makedirs("output", exist_ok=True)
@@ -70,115 +344,141 @@ class ClientApp:
             )
 
     def _create_widgets(self):
+        # Frame principal con padding general
+        main_frame = ttk.Frame(self.root, padding="20 20 20 20", style='TFrame')
+        main_frame.pack(fill=tk.BOTH, expand=True)
+
+        # Título principal
+        header = ttk.Label(main_frame, text="Sistema de Simulación de Scheduling OS", style='Header.TLabel')
+        header.pack(pady=(0, 15), fill="x")
+        
         # --- Sección Superior (Conexión, Config Cliente, Suscripción) ---
-        top_frame = ttk.Frame(self.root)
-        top_frame.pack(padx=10, pady=5, fill="x")
+        top_frame = ttk.Frame(main_frame, style='TFrame')
+        top_frame.pack(padx=10, pady=10, fill="x")
 
         # Conexión
-        conn_frame = ttk.LabelFrame(top_frame, text="Conexión Servidor")
-        conn_frame.pack(side=tk.LEFT, padx=5, pady=5, fill="y")
+        conn_frame = ttk.LabelFrame(top_frame, text="Conexión al Servidor", padding="15 10 15 15")
+        conn_frame.pack(side=tk.LEFT, padx=10, pady=5, fill="y")
 
         ttk.Label(conn_frame, text="IP:").grid(
-            row=0, column=0, padx=5, pady=2, sticky="w"
+            row=0, column=0, padx=5, pady=8, sticky="w"
         )
         ttk.Entry(conn_frame, textvariable=self.server_addr, width=15).grid(
-            row=0, column=1, padx=5, pady=2
+            row=0, column=1, padx=5, pady=8, sticky="we"
         )
         ttk.Label(conn_frame, text="Puerto:").grid(
-            row=1, column=0, padx=5, pady=2, sticky="w"
+            row=1, column=0, padx=5, pady=8, sticky="w"
         )
         ttk.Entry(conn_frame, textvariable=self.server_port, width=7).grid(
-            row=1, column=1, padx=5, pady=2, sticky="w"
+            row=1, column=1, padx=5, pady=8, sticky="w"
         )
 
         self.connect_button = ttk.Button(
-            conn_frame, text="Conectar", command=self.connect_server
+            conn_frame, text="Conectar", command=self.connect_server,
+            style='Connect.TButton'
         )
-        self.connect_button.grid(row=2, column=0, padx=5, pady=5)
+        self.connect_button.grid(row=2, column=0, padx=5, pady=8, sticky="we")
 
         self.disconnect_button = ttk.Button(
             conn_frame, text="Desconectar",
-            command=self.disconnect_server, state=tk.DISABLED
+            command=self.disconnect_server, state=tk.DISABLED,
+            style='Disconnect.TButton'
         )
-        self.disconnect_button.grid(row=2, column=1, padx=5, pady=5)
+        self.disconnect_button.grid(row=2, column=1, padx=5, pady=8, sticky="we")
 
         # Configuración Cliente
         client_config_frame = ttk.LabelFrame(
-            top_frame, text="Config. Cliente (p/ Servidor)"
+            top_frame, text="Configuración del Cliente", padding="15 10 15 15"
         )
-        client_config_frame.pack(side=tk.LEFT, padx=5, pady=5, fill="y")
+        client_config_frame.pack(side=tk.LEFT, padx=10, pady=5, fill="y")
 
         ttk.Radiobutton(
             client_config_frame, text="Threads",
             variable=self.processing_mode_var, value="threads"
-        ).grid(row=0, column=0, sticky="w", padx=5)
+        ).grid(row=0, column=0, sticky="w", padx=8, pady=4)
         ttk.Radiobutton(
             client_config_frame, text="Forks",
             variable=self.processing_mode_var, value="forks"
-        ).grid(row=0, column=1, sticky="w", padx=5)
+        ).grid(row=0, column=1, sticky="w", padx=8, pady=4)
 
         ttk.Label(client_config_frame, text="Cantidad:").grid(
-            row=1, column=0, padx=5, pady=2, sticky="w"
+            row=1, column=0, padx=8, pady=8, sticky="w"
         )
         ttk.Spinbox(
             client_config_frame, from_=1, to=16,
             textvariable=self.worker_count_var, width=5
-        ).grid(row=1, column=1, padx=5, pady=2, sticky="w")
+        ).grid(row=1, column=1, padx=8, pady=8, sticky="w")
 
         self.apply_config_button = ttk.Button(
             client_config_frame, text="Aplicar Config.",
-            command=self.send_client_config, state=tk.DISABLED
+            command=self.send_client_config, state=tk.DISABLED,
+            style='Action.TButton'
         )
         self.apply_config_button.grid(
-            row=2, column=0, columnspan=2, padx=5, pady=5
+            row=2, column=0, columnspan=2, padx=5, pady=8, sticky="we"
         )
 
         # Suscripción Eventos
-        sub_frame = ttk.LabelFrame(top_frame, text="Suscripción Eventos")
-        sub_frame.pack(side=tk.LEFT, padx=5, pady=5, fill="y")
+        sub_frame = ttk.LabelFrame(top_frame, text="Suscripción a Eventos", padding="15 10 15 15")
+        sub_frame.pack(side=tk.LEFT, padx=10, pady=5, fill="y")
 
         ttk.Label(sub_frame, text="Evento:").grid(
-            row=0, column=0, padx=5, pady=2, sticky="w"
+            row=0, column=0, padx=8, pady=8, sticky="w"
         )
         ttk.Entry(
             sub_frame, textvariable=self.event_name_var, width=15
-        ).grid(row=0, column=1, padx=5, pady=2)
+        ).grid(row=0, column=1, padx=8, pady=8, sticky="we")
 
         self.sub_button = ttk.Button(
             sub_frame, text="Suscribir",
-            command=self.subscribe_event, state=tk.DISABLED
+            command=self.subscribe_event, state=tk.DISABLED,
+            style='Action.TButton'
         )
-        self.sub_button.grid(row=1, column=0, padx=5, pady=5)
+        self.sub_button.grid(row=1, column=0, padx=5, pady=8, sticky="we")
 
         self.unsub_button = ttk.Button(
             sub_frame, text="Desuscribir",
-            command=self.unsubscribe_event, state=tk.DISABLED
+            command=self.unsubscribe_event, state=tk.DISABLED,
+            style='Action.TButton'
         )
-        self.unsub_button.grid(row=1, column=1, padx=5, pady=5)
-
+        self.unsub_button.grid(row=1, column=1, padx=5, pady=8, sticky="we")
+        
+        # Mejorar visibilidad del estado de suscripción
         self.subscribed_label = ttk.Label(
-            sub_frame, text="Suscrito a: Ninguno", width=30, wraplength=180
+            sub_frame, text="Suscrito a: Ninguno", width=30, wraplength=180,
+            style='StatusInfo.TLabel', padding=(8, 5)
         )
         self.subscribed_label.grid(
-            row=2, column=0, columnspan=2, padx=5, pady=2
+            row=2, column=0, columnspan=2, padx=5, pady=(10, 5), sticky="we"
         )
 
+        # Separador visual
+        ttk.Separator(main_frame, orient='horizontal').pack(fill='x', pady=15)
+
         # --- Sección Media (Selección Archivos Sim, Parámetros Sim, Config Sim Visual) ---
-        mid_frame = ttk.Frame(self.root)
-        mid_frame.pack(padx=10, pady=5, fill="x")
+        mid_frame = ttk.Frame(main_frame, style='TFrame')
+        mid_frame.pack(padx=10, pady=10, fill="x")
 
         # Selección de Archivos
         self.files_select_frame = ttk.LabelFrame(
-            mid_frame, text="Archivos Asignados (Seleccionar para Simulación)"
+            mid_frame, text="Archivos Asignados", padding="15 10 15 15"
         )
         self.files_select_frame.pack(
-            side=tk.LEFT, padx=5, pady=5, fill="both", expand=True
+            side=tk.LEFT, padx=10, pady=5, fill="both", expand=True
         )
-        self.files_canvas = tk.Canvas(self.files_select_frame, height=100)
+        
+        # Canvas para archivos con estilo mejorado
+        self.files_canvas = tk.Canvas(
+            self.files_select_frame, 
+            height=120, 
+            bg=self.canvas_style['bg'],
+            highlightthickness=self.canvas_style['border_width'],
+            highlightbackground=self.canvas_style['border_color']
+        )
         self.files_scrollbar = ttk.Scrollbar(
             self.files_select_frame, orient="vertical", command=self.files_canvas.yview
         )
-        self.scrollable_files_frame = ttk.Frame(self.files_canvas)
+        self.scrollable_files_frame = ttk.Frame(self.files_canvas, style='TFrame')
         self.scrollable_files_frame.bind(
             "<Configure>",
             lambda e: self.files_canvas.configure(
@@ -189,23 +489,32 @@ class ClientApp:
             (0, 0), window=self.scrollable_files_frame, anchor="nw"
         )
         self.files_canvas.configure(yscrollcommand=self.files_scrollbar.set)
-        self.files_canvas.pack(side="left", fill="both", expand=True)
-        self.files_scrollbar.pack(side="right", fill="y")
+        self.files_canvas.pack(side="left", fill="both", expand=True, padx=5, pady=5)
+        self.files_scrollbar.pack(side="right", fill="y", pady=5)
 
         self.confirm_files_button = ttk.Button(
             self.files_select_frame, text="Definir Parámetros",
-            command=self.setup_parameter_input_ui, state=tk.DISABLED
+            command=self.setup_parameter_input_ui, state=tk.DISABLED,
+            style='Action.TButton'
         )
-        self.confirm_files_button.pack(side=tk.BOTTOM, pady=5)
+        self.confirm_files_button.pack(side=tk.BOTTOM, pady=12, padx=5, fill="x")
 
         # Parámetros de Simulación
         self.params_outer_frame = ttk.LabelFrame(
-            mid_frame, text="Parámetros de Simulación (Entrada Manual)"
+            mid_frame, text="Parámetros de Simulación", padding="15 10 15 15"
         )
         self.params_outer_frame.pack(
-            side=tk.LEFT, padx=5, pady=5, fill="both", expand=True
+            side=tk.LEFT, padx=10, pady=5, fill="both", expand=True
         )
-        self.params_canvas = tk.Canvas(self.params_outer_frame, height=100)
+        
+        # Canvas para parámetros con estilo mejorado
+        self.params_canvas = tk.Canvas(
+            self.params_outer_frame, 
+            height=120, 
+            bg=self.canvas_style['bg'],
+            highlightthickness=self.canvas_style['border_width'],
+            highlightbackground=self.canvas_style['border_color']
+        )
         self.params_scrollbar = ttk.Scrollbar(
             self.params_outer_frame, orient="vertical", command=self.params_canvas.yview
         )
@@ -220,21 +529,21 @@ class ClientApp:
             (0,0), window=self.scrollable_params_frame, anchor="nw"
         )
         self.params_canvas.configure(yscrollcommand=self.params_scrollbar.set)
-        self.params_canvas.pack(side=tk.LEFT, fill="both", expand=True)
-        self.params_scrollbar.pack(side="right", fill="y")
+        self.params_canvas.pack(side=tk.LEFT, fill="both", expand=True, padx=5, pady=5)
+        self.params_scrollbar.pack(side="right", fill="y", pady=5)
 
         # Configuración Simulación Visual
-        sim_config_frame = ttk.LabelFrame(mid_frame, text="Config. Simulación Visual")
-        sim_config_frame.pack(side=tk.LEFT, padx=5, pady=5, fill="y")
+        sim_config_frame = ttk.LabelFrame(mid_frame, text="Configuración de Simulación", padding="15 10 15 15")
+        sim_config_frame.pack(side=tk.LEFT, padx=10, pady=5, fill="y")
 
         ttk.Label(sim_config_frame, text="Algoritmo:").grid(
-            row=0, column=0, padx=5, pady=2, sticky="w"
+            row=0, column=0, padx=8, pady=10, sticky="w"
         )
         self.algo_combo = ttk.Combobox(
             sim_config_frame, textvariable=self.selected_algorithm_var,
             values=list(AVAILABLE_SCHEDULERS.keys()), state="readonly", width=12
         )
-        self.algo_combo.grid(row=0, column=1, padx=5, pady=2)
+        self.algo_combo.grid(row=0, column=1, padx=8, pady=10, sticky="we")
         self.algo_combo.bind("<<ComboboxSelected>>", self.change_scheduler_sim)
 
         self.quantum_label = ttk.Label(sim_config_frame, text="Quantum (RR):")
@@ -245,84 +554,204 @@ class ClientApp:
         # (grid/grid_forget se maneja en change_scheduler_sim)
 
         self.start_sim_button = ttk.Button(
-            sim_config_frame, text="Iniciar Sim. Visual",
-            command=self.start_simulation_visual, state=tk.DISABLED
+            sim_config_frame, text="Iniciar Simulación",
+            command=self.start_simulation_visual, state=tk.DISABLED,
+            style='Action.TButton'
         )
         self.start_sim_button.grid(
-            row=2, column=0, columnspan=2, padx=5, pady=10
+            row=2, column=0, columnspan=2, padx=5, pady=10, sticky="we"
         )
 
-        # --- Sección Inferior (Visualización) ---
-        bottom_frame = ttk.Frame(self.root)
+        # --- Sección Inferior (Notebook: tabla, gantt, resultados) ---
+        ttk.Separator(main_frame, orient='horizontal').pack(fill='x', pady=15)
+        
+        bottom_frame = ttk.Frame(main_frame)
         bottom_frame.pack(padx=10, pady=10, fill="both", expand=True)
 
-        notebook = ttk.Notebook(bottom_frame)
-        notebook.pack(fill="both", expand=True, side=tk.LEFT, padx=5)
+        # Notebook con pestañas
+        self.tabs = ttk.Notebook(bottom_frame)
+        self.tabs.pack(fill="both", expand=True, padx=5, pady=5)
 
-        # Tab: Tabla de Procesos (Simulación)
-        proc_frame_sim = ttk.Frame(notebook)
-        notebook.add(proc_frame_sim, text='Tabla Procesos (Sim.)')
-        cols_sim = (
-            "PID_Sim", "Archivo", "Estado", "Llegada", "Ráfaga",
-            "Prioridad", "Restante", "Comienzo", "Fin", "Retorno", "Espera"
-        )
+        # Tab 1: Tabla de Procesos
+        self.tab_proc_table = ttk.Frame(self.tabs)
+        self.tabs.add(self.tab_proc_table, text="Tabla de Procesos")
+
+        # Encabezados para la tabla
+        columns = ("pid_sim", "filename", "arrival", "burst", "start", 
+                   "completion", "turnaround", "waiting", "state")
         self.proc_tree_sim = ttk.Treeview(
-            proc_frame_sim, columns=cols_sim, show='headings', height=8
+            self.tab_proc_table, columns=columns, show="headings", height=10
         )
-        for col in cols_sim:
-            self.proc_tree_sim.heading(col, text=col)
-            self.proc_tree_sim.column(col, width=75, anchor=tk.CENTER)
-        self.proc_tree_sim.pack(fill="both", expand=True)
+        
+        # Configurar encabezados con estilo
+        self.proc_tree_sim.heading("pid_sim", text="PID")
+        self.proc_tree_sim.column("pid_sim", width=40, anchor="center")
+        
+        self.proc_tree_sim.heading("filename", text="Archivo")
+        self.proc_tree_sim.column("filename", width=150, anchor="w")
+        
+        self.proc_tree_sim.heading("arrival", text="Llegada")
+        self.proc_tree_sim.column("arrival", width=70, anchor="center")
+        
+        self.proc_tree_sim.heading("burst", text="Ráfaga")
+        self.proc_tree_sim.column("burst", width=70, anchor="center")
+        
+        self.proc_tree_sim.heading("start", text="Inicio")
+        self.proc_tree_sim.column("start", width=70, anchor="center")
+        
+        self.proc_tree_sim.heading("completion", text="Finalización")
+        self.proc_tree_sim.column("completion", width=90, anchor="center")
+        
+        self.proc_tree_sim.heading("turnaround", text="Turnaround")
+        self.proc_tree_sim.column("turnaround", width=90, anchor="center")
+        
+        self.proc_tree_sim.heading("waiting", text="Espera")
+        self.proc_tree_sim.column("waiting", width=70, anchor="center")
+        
+        self.proc_tree_sim.heading("state", text="Estado")
+        self.proc_tree_sim.column("state", width=80, anchor="center")
 
-        # Tab: Gantt (Simulado)
-        gantt_frame_sim = ttk.Frame(notebook)
-        notebook.add(gantt_frame_sim, text='Gantt (Sim.)')
+        # Añadir barras de desplazamiento a la tabla
+        table_scroll_y = ttk.Scrollbar(self.tab_proc_table, orient="vertical", command=self.proc_tree_sim.yview)
+        table_scroll_x = ttk.Scrollbar(self.tab_proc_table, orient="horizontal", command=self.proc_tree_sim.xview)
+        self.proc_tree_sim.configure(yscrollcommand=table_scroll_y.set, xscrollcommand=table_scroll_x.set)
+        
+        # Colocar tabla y scrollbars
+        self.proc_tree_sim.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
+        table_scroll_y.grid(row=0, column=1, sticky="ns", pady=5)
+        table_scroll_x.grid(row=1, column=0, sticky="ew", padx=5)
+        
+        # Hacer que la tabla se expanda con la ventana
+        self.tab_proc_table.grid_rowconfigure(0, weight=1)
+        self.tab_proc_table.grid_columnconfigure(0, weight=1)
+        
+        # Agregar un marco para mostrar los promedios
+        avg_frame = ttk.Frame(self.tab_proc_table, padding="10 10 10 10", style='Card.TFrame')
+        avg_frame.grid(row=2, column=0, columnspan=2, sticky="ew", padx=5, pady=10)
+        
+        ttk.Label(avg_frame, text="Métricas de Rendimiento:", 
+                 style='Subtitle.TLabel').pack(side=tk.LEFT, padx=10)
+        
+        # Etiquetas para mostrar promedios
+        self.avg_turnaround_label = ttk.Label(
+            avg_frame, text="Turnaround Promedio: 0.00", 
+            style='StatusInfo.TLabel', padding=(8, 5)
+        )
+        self.avg_turnaround_label.pack(side=tk.LEFT, padx=10)
+        
+        self.avg_waiting_label = ttk.Label(
+            avg_frame, text="Tiempo de Espera Promedio: 0.00", 
+            style='StatusInfo.TLabel', padding=(8, 5)
+        )
+        self.avg_waiting_label.pack(side=tk.LEFT, padx=10)
+
+        # Tab 2: Diagrama de Gantt
+        self.tab_gantt = ttk.Frame(self.tabs)
+        self.tabs.add(self.tab_gantt, text="Diagrama de Gantt")
+        
+        # Usar un ScrolledText para el diagrama Gantt (simple)
+        self.gantt_frame = ttk.Frame(self.tab_gantt, padding="10 10 10 10")
+        self.gantt_frame.pack(fill="both", expand=True, padx=5, pady=5)
+        
+        gantt_label = ttk.Label(
+            self.gantt_frame, 
+            text="Simulación de Ejecución de Procesos", 
+            style='Header.TLabel'
+        )
+        gantt_label.pack(pady=10)
+        
+        # Marco para el diagrama de Gantt
+        gantt_scrolled_frame = ttk.Frame(self.gantt_frame, style='Card.TFrame')
+        gantt_scrolled_frame.pack(fill="both", expand=True, padx=5, pady=5)
+        
         self.gantt_text_sim = scrolledtext.ScrolledText(
-            gantt_frame_sim, height=10, wrap=tk.WORD, state=tk.DISABLED
+            gantt_scrolled_frame, 
+            height=15, 
+            width=80,
+            font=('Consolas', 10), 
+            wrap=tk.NONE,
+            background='white',
+            foreground=self.colors['text_dark'],
+            borderwidth=0,
+            padx=10,
+            pady=10
         )
         self.gantt_text_sim.pack(fill="both", expand=True, padx=5, pady=5)
+        
+        # Para la versión futura con Canvas, se reemplazaría lo anterior
 
-        # Frame derecho para resultados del servidor y CSV
-        server_results_main_frame = ttk.Frame(bottom_frame)
-        server_results_main_frame.pack(
-            fill="both", expand=True, side=tk.LEFT, padx=5
-        )
+        # Tab 3: Vista Previa CSV / Resultados Servidor
+        self.tab_results = ttk.Frame(self.tabs)
+        self.tabs.add(self.tab_results, text="Resultados")
 
-        avg_frame_sim = ttk.LabelFrame(
-            server_results_main_frame, text="Métricas Promedio (Simulación)"
+        results_label = ttk.Label(
+            self.tab_results, 
+            text="Resultados del Servidor (Vista Previa del CSV)", 
+            style='Header.TLabel'
         )
-        avg_frame_sim.pack(padx=5, pady=5, fill="x")
-        self.avg_turnaround_label_sim = ttk.Label(
-            avg_frame_sim, text="Retorno Promedio: N/A"
+        results_label.pack(pady=10)
+        
+        # Tabla para vista previa del CSV
+        columns_csv = ("pid", "filename", "emails", "dates", "wordcount", "status", "error")
+        self.results_tree = ttk.Treeview(
+            self.tab_results, columns=columns_csv, show="headings", height=10
         )
-        self.avg_turnaround_label_sim.pack(side=tk.LEFT, padx=10)
-        self.avg_waiting_label_sim = ttk.Label(
-            avg_frame_sim, text="Espera Promedio: N/A"
-        )
-        self.avg_waiting_label_sim.pack(side=tk.LEFT, padx=10)
-        self.sim_time_label_display = ttk.Label(
-            avg_frame_sim, text="Tiempo Simulación: 0"
-        )
-        self.sim_time_label_display.pack(side=tk.RIGHT, padx=10)
+        
+        # Configurar encabezados
+        self.results_tree.heading("pid", text="PID Servidor")
+        self.results_tree.column("pid", width=80, anchor="center")
+        
+        self.results_tree.heading("filename", text="Archivo")
+        self.results_tree.column("filename", width=150, anchor="w")
+        
+        self.results_tree.heading("emails", text="Emails")
+        self.results_tree.column("emails", width=120, anchor="w")
+        
+        self.results_tree.heading("dates", text="Fechas")
+        self.results_tree.column("dates", width=120, anchor="w")
+        
+        self.results_tree.heading("wordcount", text="# Palabras")
+        self.results_tree.column("wordcount", width=80, anchor="center")
+        
+        self.results_tree.heading("status", text="Estado")
+        self.results_tree.column("status", width=80, anchor="center")
+        
+        self.results_tree.heading("error", text="Error")
+        self.results_tree.column("error", width=150, anchor="w")
 
-        csv_frame = ttk.LabelFrame(
-            server_results_main_frame, text="Resultados del Servidor (para CSV)"
-        )
-        csv_frame.pack(padx=5, pady=5, fill="both", expand=True)
-        self.server_results_text = scrolledtext.ScrolledText(
-            csv_frame, height=10, wrap=tk.NONE, state=tk.DISABLED
-        )
-        self.server_results_text.pack(fill="both", expand=True, padx=5, pady=5)
+        # Scrollbars para la tabla de resultados
+        results_scroll_y = ttk.Scrollbar(self.tab_results, orient="vertical", command=self.results_tree.yview)
+        results_scroll_x = ttk.Scrollbar(self.tab_results, orient="horizontal", command=self.results_tree.xview)
+        self.results_tree.configure(yscrollcommand=results_scroll_y.set, xscrollcommand=results_scroll_x.set)
+        
+        # Colocar tabla y scrollbars
+        self.results_tree.pack(fill="both", expand=True, side=tk.LEFT, padx=5, pady=5)
+        results_scroll_y.pack(fill="y", side=tk.RIGHT, pady=5)
+        results_scroll_x.pack(fill="x", side=tk.BOTTOM, padx=5)
+
+        # Añadir botón para guardar a CSV
+        button_frame = ttk.Frame(self.tab_results, padding="0 10 0 0")
+        button_frame.pack(fill="x", padx=5, pady=5)
+        
         self.save_csv_button = ttk.Button(
-            csv_frame, text="Guardar Resultados a CSV",
-            command=self.save_results_to_csv, state=tk.DISABLED
+            button_frame, 
+            text="Guardar Resultados a CSV",
+            command=self.save_results_to_csv, 
+            state=tk.DISABLED,
+            style='Action.TButton'
         )
         self.save_csv_button.pack(pady=5)
-
-        self.status_bar = ttk.Label(
-            self.root, text="Desconectado.", relief=tk.SUNKEN, anchor=tk.W
+        
+        # Barra de estado
+        self.status_frame = ttk.Frame(main_frame, style='Card.TFrame')
+        self.status_frame.pack(fill="x", padx=10, pady=10)
+        
+        self.status_label = ttk.Label(
+            self.status_frame, 
+            text="Desconectado. Inicie conexión con el servidor.",
+            style='Status.TLabel'
         )
-        self.status_bar.pack(side=tk.BOTTOM, fill="x")
+        self.status_label.pack(fill="x")
 
         self.change_scheduler_sim() # Para ocultar quantum inicialmente
 
@@ -340,7 +769,7 @@ class ClientApp:
             self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.client_socket.connect((ip, port))
             self.connected = True
-            self.status_bar.config(text=f"Conectado a {ip}:{port}")
+            self.status_label.config(text=f"Conectado a {ip}:{port}")
 
             self.connect_button.config(state=tk.DISABLED)
             self.disconnect_button.config(state=tk.NORMAL)
@@ -373,7 +802,7 @@ class ClientApp:
             self.client_socket = None
             self.connected = False
             self.simulation_running_sim = False
-            self.status_bar.config(text="Desconectado.")
+            self.status_label.config(text="Desconectado.")
 
             self.connect_button.config(state=tk.NORMAL)
             self.disconnect_button.config(state=tk.DISABLED)
@@ -459,67 +888,110 @@ class ClientApp:
             self.root.after(100, self.check_message_queue) # Volver a programar
 
     def handle_server_message(self, message):
-        msg_type = message.get("type")
-        payload = message.get("payload")
-        # print(f"GUI recibió: Tipo={msg_type}") # Comentar para menos logs
+        """Procesa un mensaje recibido del servidor."""
+        try:
+            # Análisis del mensaje JSON
+            msg_type = message.get('type', '')
+            payload = message.get('payload', {})
 
-        if msg_type == "ACK_CONFIG":
-            if payload.get("status") == "success":
-                cfg = payload.get('config')
-                self.status_bar.config(text=f"Config. aplicada por servidor: {cfg}")
-                self.num_workers_for_sim_display = cfg.get('count', 2)
-            else:
-                msg = payload.get('message')
-                messagebox.showerror("Error Config.", f"Servidor rechazó config: {msg}")
-
-        elif msg_type == "START_PROCESSING":
-            self.server_assigned_files = payload.get("files", [])
-            event = payload.get('event')
-            num_files = len(self.server_assigned_files)
-            self.status_bar.config(
-                text=f"Servidor inició proc. evento '{event}'. Archivos: {num_files}"
-            )
-            self.server_results_for_csv.clear() # Limpiar resultados anteriores
-            self.save_csv_button.config(state=tk.DISABLED)
-            self.display_file_selection_ui() # Mostrar checkboxes
-
-        elif msg_type == "PROCESSING_COMPLETE":
-            event = payload.get('event')
-            status = payload.get('status')
-            self.status_bar.config(
-                text=f"Servidor completó proc. '{event}'. Estado: {status}"
-            )
-            if status == "success":
-                self.server_results_for_csv = payload.get("results", [])
-                self.display_server_results()
-                if self.server_results_for_csv:
+            if msg_type == "WELCOME":
+                # Respuesta a conexión
+                server_info = payload.get('server_info', {})
+                version = server_info.get('version', 'desconocida')
+                self.status_label.config(
+                    text=f"Conectado. Servidor v{version}. Listo para suscribir."
+                )
+                self.sub_button.config(state=tk.NORMAL)
+                self.unsub_button.config(state=tk.NORMAL)
+                self.apply_config_button.config(state=tk.NORMAL)
+                
+            elif msg_type == "CONFIG_RESPONSE":
+                # Respuesta a configuración
+                if payload.get("status") == "success":
+                    cfg = payload.get('config')
+                    self.status_label.config(text=f"Config. aplicada por servidor: {cfg}")
+                    self.num_workers_for_sim_display = cfg.get('count', 2)
+                else:
+                    messagebox.showwarning(
+                        "Config Rechazada", 
+                        f"El servidor rechazó la configuración: {payload.get('message', 'Sin detalles')}"
+                    )
+                    
+            elif msg_type == "SUBSCRIPTION_RESPONSE":
+                # Respuesta a suscripción
+                event = payload.get('event')
+                status = payload.get('status')
+                if status == 'success':
+                    if payload.get('action') == 'subscribe':
+                        self.subscribed_events.add(event)
+                    elif payload.get('action') == 'unsubscribe':
+                        self.subscribed_events.discard(event)
+                    self.update_subscribed_label()
+                    self.status_label.config(
+                        text=f"Operación de suscripción exitosa para '{event}'"
+                    )
+                else:
+                    messagebox.showwarning(
+                        "Error Suscripción", 
+                        f"Error con evento '{event}': {payload.get('message', 'Sin detalles')}"
+                    )
+                    
+            elif msg_type == "START_PROCESSING":
+                # Inicio de procesamiento de archivos
+                self.server_assigned_files = payload.get('files', [])
+                event = payload.get('event')
+                num_files = len(self.server_assigned_files)
+                self.status_label.config(
+                    text=f"Servidor inició proc. evento '{event}'. Archivos: {num_files}"
+                )
+                # Mostrar UI para selección de archivos para simulación
+                if self.server_assigned_files:
+                    self.display_file_selection_ui()
+                    
+            elif msg_type == "PROCESSING_COMPLETE":
+                # Procesamiento completo
+                event = payload.get('event')
+                status = payload.get('status')
+                self.status_label.config(
+                    text=f"Servidor completó proc. '{event}'. Estado: {status}"
+                )
+                
+                if status == 'success':
+                    self.server_results_for_csv = payload.get('results', [])
+                    self.display_server_results()
                     self.save_csv_button.config(state=tk.NORMAL)
-            else:
-                msg = payload.get('message')
-                messagebox.showerror("Error Procesamiento Servidor", f"Error: {msg}")
-
-        elif msg_type == "ACK_SUB":
-            event_name = payload
-            self.subscribed_events.add(event_name)
-            self.update_subscribed_label()
-            self.unsub_button.config(state=tk.NORMAL)
-
-        elif msg_type == "ACK_UNSUB":
-            event_name = payload
-            self.subscribed_events.discard(event_name)
-            self.update_subscribed_label()
-            if not self.subscribed_events:
-                self.unsub_button.config(state=tk.DISABLED)
-
-        elif msg_type == "SERVER_EXIT":
-            messagebox.showinfo("Servidor", "El servidor ha cerrado la conexión.")
-            self.disconnect_server()
-
-        elif msg_type == "ERROR" or msg_type == "_THREAD_EXIT_":
-            if self.connected: # Evitar doble mensaje
-                err_payload = payload if isinstance(payload, str) else "Error o desconexión."
-                messagebox.showerror("Error de Red", err_payload)
+                else:
+                    messagebox.showerror(
+                        "Error Procesamiento", 
+                        f"Error en procesamiento: {payload.get('message', 'Sin detalles')}"
+                    )
+                    
+            elif msg_type == "SERVER_SHUTTING_DOWN":
+                # Servidor cerrando
+                messagebox.showinfo(
+                    "Servidor Cerrando", 
+                    "El servidor está cerrando. Se desconectará ahora."
+                )
                 self.disconnect_server()
+                
+            else:
+                # Mensaje desconocido
+                print(f"Mensaje desconocido recibido: {msg_type}")
+                
+        except json.JSONDecodeError:
+            print(f"Error decodificando JSON: {message}")
+        except Exception as e:
+            print(f"Error manejando mensaje del servidor: {e}")
+            
+    def on_closing(self):
+        """Manejador para cierre de ventana."""
+        if messagebox.askokcancel("Salir", "¿Seguro que quieres salir?"):
+            if self.connected:
+                try:
+                    self.disconnect_server()
+                except:
+                    pass  # Ignorar errores al desconectar
+            self.root.destroy()
 
     # --- Configuración Cliente y Suscripción ---
     def send_client_config(self):
@@ -725,7 +1197,7 @@ class ClientApp:
             self.quantum_label.grid_forget()
             self.quantum_spinbox.grid_forget()
 
-        self.status_bar.config(text=f"Algoritmo simulación: {self.scheduler_sim}")
+        self.status_label.config(text=f"Algoritmo simulación: {self.scheduler_sim}")
         self.root.update_idletasks() # Para que los pack_forget/grid_forget se apliquen
         if hasattr(self, 'scrollable_params_frame'): # Asegurar que el frame existe
             self.params_canvas.config(scrollregion=self.params_canvas.bbox("all"))
@@ -773,19 +1245,19 @@ class ClientApp:
         if not self.simulation_running_sim:
             self.simulation_running_sim = True
             self.start_sim_button.config(text="Pausar Sim. Visual")
-            self.status_bar.config(text="Simulación visual iniciada...")
+            self.status_label.config(text="Simulación visual iniciada...")
             self.simulation_step_visual()
         else: # Pausar
             self.simulation_running_sim = False
             self.start_sim_button.config(text="Reanudar Sim. Visual")
-            self.status_bar.config(text="Simulación visual pausada.")
+            self.status_label.config(text="Simulación visual pausada.")
 
     def simulation_step_visual(self):
         if not self.simulation_running_sim:
             return
 
         current_time = self.simulation_time_sim
-        self.sim_time_label_display.config(text=f"Tiempo Sim: {current_time}")
+        self.status_label.config(text=f"Tiempo Sim: {current_time}")
 
         # 1. Mover de self.processes_to_simulate a self.ready_queue_sim
         remaining_to_schedule = []
@@ -878,7 +1350,7 @@ class ClientApp:
             self.start_sim_button.config(
                 text="Sim. Visual Completa", state=tk.DISABLED
             )
-            self.status_bar.config(
+            self.status_label.config(
                 text=f"Sim. visual completada en {current_time} ticks."
             )
             self.calculate_and_display_averages_sim()
@@ -899,42 +1371,77 @@ class ClientApp:
          })
 
     def update_process_table_sim(self, pid_sim, updates):
-        item_id = str(pid_sim)
-        if self.proc_tree_sim.exists(item_id):
-            current_values = list(self.proc_tree_sim.item(item_id, 'values'))
-            cols = list(self.proc_tree_sim['columns'])
-            new_values = list(current_values) # Copia
+        """Actualiza una fila en la tabla de procesos con los datos proporcionados."""
+        # Buscar el ID del elemento en el árbol
+        item_id = None
+        for item in self.proc_tree_sim.get_children():
+            if self.proc_tree_sim.item(item, "values")[0] == str(pid_sim):
+                item_id = item
+                break
+
+        if item_id is None:
+            # La fila no existe, posiblemente necesitamos insertar una nueva
+            values = [pid_sim]
+            for key in ["filename", "state", "arrival", "burst", "remaining_burst_time", 
+                      "start", "completion", "turnaround", "waiting"]:
+                values.append(updates.get(key, ""))
+            self.proc_tree_sim.insert("", "end", values=values)
+        else:
+            # La fila existe, actualizarla
+            current_values = list(self.proc_tree_sim.item(item_id, "values"))
+            
+            # Actualizar cada columna según el diccionario de actualizaciones
+            column_map = {
+                "filename": 1,
+                "state": 8,  # Cambié la posición del estado a la columna 8
+                "arrival": 2,
+                "burst": 3,
+                "start": 4,
+                "completion": 5,
+                "turnaround": 6,
+                "waiting": 7
+            }
+            
             for key, value in updates.items():
-                try:
-                    index = cols.index(key)
-                    new_values[index] = value
-                except ValueError:
-                    pass # Columna no encontrada, ignorar
-            self.proc_tree_sim.item(item_id, values=tuple(new_values))
+                if key in column_map:
+                    current_values[column_map[key]] = value
+            
+            self.proc_tree_sim.item(item_id, values=current_values)
 
     def update_gantt_display_sim(self, time_tick, running_pids_with_threads):
+        """Actualiza la visualización del diagrama de Gantt en el tiempo actual."""
+        # Permitir edición
         self.gantt_text_sim.config(state=tk.NORMAL)
-        gantt_line = f"T={time_tick}: "
-        running_strs = []
-        # Mapeo de PID a su thread_id asignado en este tick
-        active_map = {pid: th_id for pid, th_id in running_pids_with_threads}
-
-        for i in range(self.num_workers_for_sim_display): # Iterar sobre "slots" de threads
-            found_proc_on_thread = False
-            # Verificar si algún proceso se está ejecutando en este "slot" de thread (i)
-            # Nota: running_pids_with_threads da (pid, índice_en_running_list)
-            # Necesitamos asegurar que el índice_en_running_list corresponda a 'i'
-            for pid, assigned_thread_index_in_list in active_map.items():
-                if assigned_thread_index_in_list == i :
-                    running_strs.append(f"[T{i}:P{pid}]")
-                    found_proc_on_thread = True
-                    break # Solo un proceso por slot de thread
-            if not found_proc_on_thread:
-                running_strs.append(f"[T{i}:Idle]")
         
-        gantt_line += " ".join(running_strs) + "\n"
-        self.gantt_text_sim.insert(tk.END, gantt_line)
-        self.gantt_text_sim.see(tk.END) # Auto-scroll
+        # Agregar encabezado de tiempo si es el inicio
+        if time_tick == 0:
+            self.gantt_text_sim.delete(1.0, tk.END)
+            self.gantt_text_sim.insert(tk.END, "Tiempo | CPUs/Threads\n")
+            self.gantt_text_sim.insert(tk.END, "-" * 50 + "\n")
+        
+        # Formato de la línea: "t=XX | [P1] [P2] [ ] [P4]"
+        line = f"t={time_tick:2d} | "
+        
+        # Para cada thread/CPU disponible
+        for thread_id in range(self.num_workers_for_sim_display):
+            # Verificar si hay un proceso asignado a este thread en este tiempo
+            pid_assigned = None
+            for pid, thread in running_pids_with_threads:
+                if thread == thread_id:
+                    pid_assigned = pid
+                    break
+            
+            # Agregar representación visual
+            if pid_assigned is not None:
+                line += f"[P{pid_assigned}] "
+            else:
+                line += "[ ] "
+        
+        # Agregar la línea al diagrama
+        self.gantt_text_sim.insert(tk.END, line + "\n")
+        self.gantt_text_sim.see(tk.END)  # Scroll al final
+        
+        # Deshabilitar edición
         self.gantt_text_sim.config(state=tk.DISABLED)
 
     def calculate_and_display_averages_sim(self):
@@ -945,80 +1452,81 @@ class ClientApp:
         avg_T = sum(p.turnaround_time for p in self.completed_processes_sim) / count if count else 0
         avg_W = sum(p.waiting_time for p in self.completed_processes_sim) / count if count else 0
 
-        self.avg_turnaround_label_sim.config(text=f"Retorno Prom: {avg_T:.2f}")
-        self.avg_waiting_label_sim.config(text=f"Espera Prom: {avg_W:.2f}")
+        self.avg_turnaround_label.config(text=f"Turnaround Promedio: {avg_T:.2f}")
+        self.avg_waiting_label.config(text=f"Tiempo de Espera Promedio: {avg_W:.2f}")
 
     # --- Resultados Servidor y CSV ---
     def display_server_results(self):
-        self.server_results_text.config(state=tk.NORMAL)
-        self.server_results_text.delete('1.0', tk.END)
-
+        """Muestra resultados del servidor en la interfaz."""
         if not self.server_results_for_csv:
-            self.server_results_text.insert(tk.END, "No hay resultados del servidor.")
-            self.server_results_text.config(state=tk.DISABLED)
-            return
+            return  # Nada que mostrar
 
-        for i, res_item in enumerate(self.server_results_for_csv):
-            status = res_item.get("status", "N/A")
-            fname = res_item.get("filename", "N/A")
-            line = f"Archivo: {fname}, Estado: {'OK' if status == 'success' else 'ERROR'}"
-            if status == "success":
-                data = res_item.get("data", {})
-                # Truncar datos largos para visualización
-                display_data = {k: (v[:50] + '...' if isinstance(v, list) and len(v) > 3 else v) for k,v in data.items()}
-                line += f", Datos: {json.dumps(display_data, indent=2)}"
-            else:
-                error_msg = res_item.get("error", "Error desconocido")
-                line += f", Msg: {error_msg}"
-            self.server_results_text.insert(tk.END, line + "\n---\n")
+        # Limpiar la tabla de resultados
+        for item in self.results_tree.get_children():
+            self.results_tree.delete(item)
 
-            if i > 20 and len(self.server_results_for_csv) > 25 : # Limitar para no sobrecargar
-                remaining = len(self.server_results_for_csv) - i - 1
-                self.server_results_text.insert(tk.END, f"... y {remaining} más resultados.")
-                break
-        self.server_results_text.config(state=tk.DISABLED)
+        # Agregar cada resultado a la tabla
+        for result in self.server_results_for_csv:
+            try:
+                pid_server = result.get("pid_server", "N/A")
+                filename = result.get("filename", "")
+                
+                # Datos extraídos del archivo
+                data = result.get("data", {})
+                emails = ", ".join(data.get("emails_found", []))[:50] + "..." if len(emails := data.get("emails_found", [])) > 3 else ", ".join(emails)
+                dates = ", ".join(data.get("dates_found", []))[:50] + "..." if len(dates := data.get("dates_found", [])) > 3 else ", ".join(dates)
+                word_count = str(data.get("word_count", 0))
+                
+                status = result.get("status", "")
+                error = result.get("error", "")
+                
+                self.results_tree.insert("", "end", values=(
+                    pid_server, filename, emails, dates, 
+                    word_count, status, error
+                ))
+                
+            except Exception as e:
+                print(f"Error al mostrar resultado: {e}")
+
+        # Actualizar barra de estado
+        self.status_label.config(
+            text=f"{len(self.server_results_for_csv)} resultados recibidos del servidor."
+        )
 
     def save_results_to_csv(self):
+        """Guarda los resultados en un archivo CSV."""
         if not self.server_results_for_csv:
-            messagebox.showinfo("CSV", "No hay resultados del servidor para guardar.")
+            messagebox.showinfo("Info", "No hay resultados para guardar.")
             return
 
         try:
+            import csv
             with open(self.output_csv_path, 'w', newline='', encoding='utf-8') as f:
                 writer = csv.writer(f)
-                writer.writerow(self.csv_headers)
-
-                for i, res_item in enumerate(self.server_results_for_csv):
-                    fname = res_item.get("filename", f"unknown_file_{i}")
-                    server_status = res_item.get("status", "error")
-                    error_message = res_item.get("error", "") if server_status == "error" else ""
-                    data = res_item.get("data", {}) if server_status == "success" else {}
-
-                    # Construir la fila basada en self.csv_headers
-                    # ["PID_Servidor_Sim", "NombreArchivo", "Emails", "Fechas", "ConteoPalabras", "EstadoServidor", "MsgErrorServidor"]
-                    row_to_write = [
-                        i, # PID simulado para el resultado del servidor
-                        fname,
-                        (data.get("emails_found") or ["N/A"])[0], # Tomar el primero o N/A
-                        (data.get("dates_found") or ["N/A"])[0],  # Tomar el primero o N/A
-                        data.get("word_count", "N/A"),
-                        server_status.upper(),
-                        error_message[:100] # Limitar longitud del mensaje de error
-                    ]
-                    writer.writerow(row_to_write[:len(self.csv_headers)]) # Asegurar no exceder headers
-
-            messagebox.showinfo(
-                "CSV Guardado", f"Resultados guardados en:\n{self.output_csv_path}"
+                writer.writerow(self.csv_headers)  # Encabezados
+                
+                for result in self.server_results_for_csv:
+                    pid = result.get("pid_server", "")
+                    filename = result.get("filename", "")
+                    
+                    # Datos extraídos
+                    data = result.get("data", {})
+                    emails = "|".join(data.get("emails_found", []))
+                    dates = "|".join(data.get("dates_found", []))
+                    word_count = str(data.get("word_count", 0))
+                    
+                    status = result.get("status", "")
+                    error = result.get("error", "")
+                    
+                    writer.writerow([pid, filename, emails, dates, word_count, status, error])
+            
+            self.status_label.config(
+                text=f"Resultados guardados en {self.output_csv_path}"
             )
+            messagebox.showinfo("Info", f"Resultados guardados en:\n{self.output_csv_path}")
+        
         except Exception as e:
-            messagebox.showerror(
-                "Error Guardando CSV", f"No se pudo guardar el archivo CSV: {e}"
-            )
-
-    def on_closing(self):
-        if messagebox.askokcancel("Salir", "¿Seguro que quieres salir?"):
-            self.disconnect_server()
-            self.root.destroy()
+            messagebox.showerror("Error", f"Error al guardar CSV: {e}")
 
 
 if __name__ == "__main__":
