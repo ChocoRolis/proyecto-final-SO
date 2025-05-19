@@ -344,9 +344,38 @@ class ClientApp:
             )
 
     def _create_widgets(self):
+        # Crear un frame contenedor con scrollbar
+        container = ttk.Frame(self.root)
+        container.pack(fill=tk.BOTH, expand=True)
+        
+        # Crear canvas y scrollbar
+        canvas = tk.Canvas(container, bg=self.colors['bg_main'])
+        scrollbar = ttk.Scrollbar(container, orient="vertical", command=canvas.yview)
+        
         # Frame principal con padding general
-        main_frame = ttk.Frame(self.root, padding="20 20 20 20", style='TFrame')
-        main_frame.pack(fill=tk.BOTH, expand=True)
+        main_frame = ttk.Frame(canvas, padding="20 20 20 20", style='TFrame')
+        
+        # Configurar el canvas
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        # Crear ventana en el canvas
+        canvas_window = canvas.create_window((0, 0), window=main_frame, anchor="nw")
+        
+        # Configurar scrollbar y canvas
+        scrollbar.pack(side="right", fill="y")
+        canvas.pack(side="left", fill="both", expand=True)
+        
+        # Configurar el scroll
+        def configure_scroll(event):
+            canvas.configure(scrollregion=canvas.bbox("all"))
+        
+        main_frame.bind("<Configure>", configure_scroll)
+        
+        # Permitir scroll con rueda del mouse
+        def _on_mousewheel(event):
+            canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+        
+        canvas.bind_all("<MouseWheel>", _on_mousewheel)
 
         # Título principal
         header = ttk.Label(main_frame, text="Sistema de Simulación de Scheduling OS", style='Header.TLabel')
