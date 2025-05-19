@@ -1092,6 +1092,7 @@ class ClientApp:
             widget.destroy()
         self.confirm_files_button.config(state=tk.DISABLED)
 
+
     def setup_parameter_input_ui(self):
         self.clear_parameter_input_ui()
         self.processes_to_simulate.clear()
@@ -1100,14 +1101,14 @@ class ClientApp:
 
         selected_files = [
             fname for fname, var in self.files_for_simulation_vars.items() if var.get()
-        ]
+            ]
 
         if not selected_files:
-            messagebox.showinfo("Simulación", "No se seleccionaron archivos para simular.")
-            self.start_sim_button.config(state=tk.DISABLED)
-            return
+                messagebox.showinfo("Simulación", "No se seleccionaron archivos para simular.")
+                self.start_sim_button.config(state=tk.DISABLED)
+                return
 
-        # Crear cabeceras dentro de self.scrollable_params_frame
+            # Crear cabeceras dentro de self.scrollable_params_frame
         header_frame = ttk.Frame(self.scrollable_params_frame)
         header_frame.pack(fill="x", pady=2)
         ttk.Label(
@@ -1149,7 +1150,7 @@ class ClientApp:
             priority_entry = ttk.Entry(
                 entry_frame, textvariable=priority_var, width=7
             )
-            # priority_entry.pack() se maneja en change_scheduler_sim
+                # priority_entry.pack() se maneja en change_scheduler_sim
 
             self.process_params_entries[pid_sim] = {
                 "filename": filename,
@@ -1159,13 +1160,15 @@ class ClientApp:
                 "priority_entry_widget": priority_entry
             }
 
-        self.start_sim_button.config(state=tk.NORMAL)
-        self.change_scheduler_sim() # Para mostrar/ocultar prioridad y ajustar scroll
-        self.root.update_idletasks() # Forzar actualización para bbox
-        self.params_canvas.config(scrollregion=self.params_canvas.bbox("all"))
-        num_selected = len(selected_files)
-        new_param_height = min(max(num_selected * 30, 50), 150) # Ajustar altura
-        self.params_canvas.config(height=new_param_height)
+            self.start_sim_button.config(state=tk.NORMAL)
+            self.change_scheduler_sim() # Para mostrar/ocultar prioridad y ajustar scroll
+            self.root.update_idletasks() # Forzar actualización para bbox
+            self.params_canvas.config(scrollregion=self.params_canvas.bbox("all"))
+            num_selected = len(selected_files)
+            new_param_height = min(max(num_selected * 30, 50), 150) # Ajustar altura
+            self.params_canvas.config(height=new_param_height)
+            self.selected_files_for_processing = selected_files
+
 
 
     def clear_parameter_input_ui(self):
@@ -1248,27 +1251,27 @@ class ClientApp:
                 filename = params["filename"]
                 arrival = int(params["arrival_var"].get())
                 burst = int(params["burst_var"].get())
-                priority = int(params["priority_var"].get()) # Si se usa
+                priority = int(params["priority_var"].get())
 
                 if burst <= 0:
                     msg = f"Ráfaga para '{filename}' debe ser positiva."
                     messagebox.showerror("Error Simulación", msg)
                     valid_input = False
                     break
-                
-                proc = Process(pid_sim, filename, arrival, burst, priority) # Añadir priority si es necesario
+
+                proc = Process(pid_sim, filename, arrival, burst, priority)
                 self.processes_to_simulate.append(proc)
                 self.proc_tree_sim.insert("", tk.END, iid=str(pid_sim), values=(
-                     pid_sim, filename, proc.state, arrival, burst, priority,
-                     burst, "N/A", "N/A", "N/A", "N/A"
-                 ))
+                    pid_sim, filename, proc.state, arrival, burst, priority,
+                    burst, "N/A", "N/A", "N/A", "N/A"
+                ))
             except ValueError:
                 messagebox.showerror("Error Simulación", "Entrada inválida para parámetros.")
                 valid_input = False
                 break
 
         if not valid_input or not self.processes_to_simulate:
-            self.start_sim_button.config(state=tk.NORMAL) # Permitir reintentar
+            self.start_sim_button.config(state=tk.NORMAL)
             return
 
         if not self.simulation_running_sim:
@@ -1276,7 +1279,18 @@ class ClientApp:
             self.start_sim_button.config(text="Pausar Sim. Visual")
             self.status_label.config(text="Simulación visual iniciada...")
             self.simulation_step_visual()
-        else: # Pausar
+
+            # 🔁 Enviar archivos seleccionados al servidor para procesamiento regex
+            if hasattr(self, "selected_files_for_processing"):
+                self.send_message({
+                    "type": "PROCESS_FILES",
+                    "payload": {
+                        "event": self.event_name_var.get(),
+                        "files": self.selected_files_for_processing
+                    }
+                })
+
+        else:
             self.simulation_running_sim = False
             self.start_sim_button.config(text="Reanudar Sim. Visual")
             self.status_label.config(text="Simulación visual pausada.")

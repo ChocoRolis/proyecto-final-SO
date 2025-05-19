@@ -306,7 +306,6 @@ def handle_client(client_socket, addr):
                     message = json.loads(message_str)
                     command = message.get("type")
                     payload = message.get("payload")
-                    # server_log(f"De {addr}: {command}") # Demasiado verboso
 
                     if command == "SET_CONFIG":
                         if (isinstance(payload, dict) and
@@ -320,7 +319,6 @@ def handle_client(client_socket, addr):
                                         'mode': mode, 'count': count
                                     }
                                 cfg = client_configs[client_socket]
-                                # server_log(f"Config actualizada para {addr}: {cfg}")
                                 send_to_client(client_socket, {
                                     "type": "ACK_CONFIG",
                                     "payload": {"status": "success", "config": cfg}
@@ -363,7 +361,6 @@ def handle_client(client_socket, addr):
                                 if event_name in events:
                                     events[event_name].discard(client_socket)
                                 if event_name in client_queues:
-                                    # Reconstruir la cola sin el cliente
                                     new_q = collections.deque(
                                         [s for s in client_queues[event_name]
                                          if s != client_socket]
@@ -375,6 +372,62 @@ def handle_client(client_socket, addr):
                              send_to_client(client_socket,
                                             {"type": "ERROR", "payload": "UNSUB inválido."})
 
+                    elif command == "PROCESS_FILES":
+                        event_name = payload.get("event", "sin_evento")
+                        files = payload.get("files", [])
+
+                        if not files:
+                            send_to_client(client_socket, {
+                                "type": "PROCESSING_COMPLETE",
+                                "payload": {
+                                    "event": event_name,
+                                    "status": "success",
+                                    "message": "No files provided.",
+                                    "results": []
+                                }
+                            })
+                            continue
+
+                        try:
+                            full_paths = [
+                                os.path.join(TEXT_FILES_DIR, f) for f in files
+                                if os.path.isfile(os.path.join(TEXT_FILES_DIR, f))
+                            ]
+
+                            num_workers = client_configs.get(client_socket, {}).get('count', 2)
+                            mode = client_configs.get(client_socket, {}).get('mode', 'threads')
+
+                            executor_cls = (
+                                concurrent.futures.ThreadPoolExecutor
+                                if mode == 'threads'
+                                else concurrent.futures.ProcessPoolExecutor
+                            )
+
+                            with executor_cls(max_workers=num_workers) as executor:
+                                map_input = [(fp,) for fp in full_paths]
+                                map_results = list(executor.map(process_single_file_wrapper, map_input))
+
+                            send_to_client(client_socket, {
+                                "type": "PROCESSING_COMPLETE",
+                                "payload": {
+                                    "event": event_name,
+                                    "status": "success",
+                                    "results": map_results,
+                                    "duration_seconds": 0
+                                }
+                            })
+
+                        except Exception as e:
+                            send_to_client(client_socket, {
+                                "type": "PROCESSING_COMPLETE",
+                                "payload": {
+                                    "event": event_name,
+                                    "status": "failure",
+                                    "message": str(e),
+                                    "results": []
+                                }
+                            })
+
                 except json.JSONDecodeError:
                     server_log(f"JSON inválido de {addr}: '{message_str}'")
                 except Exception as e:
@@ -382,8 +435,6 @@ def handle_client(client_socket, addr):
     finally:
         handle_disconnect(client_socket)
 
-
-# --- Hilo de Comandos del Servidor ---
 
 def print_help():
     print("\n--- Comandos del Servidor ---")
