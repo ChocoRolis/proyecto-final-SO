@@ -10,7 +10,7 @@ import time
 import re
 import math
 import sys # Para sys.stdout.flush()
-from extractor_regex import parse_file_regex as parse_file
+from .extractor_regex import parse_file_regex as parse_file
 
 
 
