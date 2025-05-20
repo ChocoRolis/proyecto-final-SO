@@ -671,7 +671,7 @@ class ClientApp:
         self.tab_gantt = ttk.Frame(self.tabs)
         self.tabs.add(self.tab_gantt, text="Diagrama de Gantt")
         
-        # Usar un ScrolledText para el diagrama Gantt (simple)
+        # Contenedor principal para el Gantt
         self.gantt_frame = ttk.Frame(self.tab_gantt, padding="10 10 10 10")
         self.gantt_frame.pack(fill="both", expand=True, padx=5, pady=5)
         
@@ -682,26 +682,66 @@ class ClientApp:
         )
         gantt_label.pack(pady=10)
         
-        # Marco para el diagrama de Gantt
-        gantt_scrolled_frame = ttk.Frame(self.gantt_frame, style='Card.TFrame')
-        gantt_scrolled_frame.pack(fill="both", expand=True, padx=5, pady=5)
+        # Panel de información
+        gantt_info_frame = ttk.Frame(self.gantt_frame, style='Card.TFrame')
+        gantt_info_frame.pack(fill="x", padx=5, pady=5)
         
-        self.gantt_text_sim = scrolledtext.ScrolledText(
-            gantt_scrolled_frame, 
-            height=15, 
-            width=80,
-            font=('Consolas', 10), 
-            wrap=tk.NONE,
-            background='white',
-            foreground=self.colors['text_dark'],
-            borderwidth=0,
-            padx=10,
-            pady=10
+        ttk.Label(
+            gantt_info_frame, 
+            text="Cada barra representa un proceso en ejecución. Los números indican el PID del proceso.",
+            style='Subtitle.TLabel',
+            padding=(10, 5)
+        ).pack(side=tk.LEFT, padx=10)
+        
+        # Canvas con scrollbars para el diagrama de Gantt
+        gantt_canvas_frame = ttk.Frame(self.gantt_frame, style='Card.TFrame')
+        gantt_canvas_frame.pack(fill="both", expand=True, padx=5, pady=5)
+        
+        # Canvas para el diagrama de Gantt
+        self.gantt_canvas = tk.Canvas(
+            gantt_canvas_frame,
+            bg='white',
+            highlightthickness=1,
+            highlightbackground=self.colors['border']
         )
-        self.gantt_text_sim.pack(fill="both", expand=True, padx=5, pady=5)
         
-        # Para la versión futura con Canvas, se reemplazaría lo anterior
-
+        # Scrollbars para el canvas
+        self.gantt_x_scrollbar = ttk.Scrollbar(
+            gantt_canvas_frame, 
+            orient="horizontal", 
+            command=self.gantt_canvas.xview
+        )
+        self.gantt_y_scrollbar = ttk.Scrollbar(
+            gantt_canvas_frame, 
+            orient="vertical", 
+            command=self.gantt_canvas.yview
+        )
+        
+        # Configurar canvas con scrollbars
+        self.gantt_canvas.configure(
+            xscrollcommand=self.gantt_x_scrollbar.set,
+            yscrollcommand=self.gantt_y_scrollbar.set
+        )
+        
+        # Colocar elementos en el marco
+        self.gantt_y_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.gantt_x_scrollbar.pack(side=tk.BOTTOM, fill=tk.X)
+        self.gantt_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        
+        # Diccionario para almacenar información del diagrama de Gantt
+        self.gantt_data = {
+            'last_time': -1,
+            'process_colors': {},
+            'process_rows': {},
+            'time_width': 50,   # Ancho de cada unidad de tiempo
+            'row_height': 40,   # Alto de cada fila/CPU
+            'next_color_index': 0,
+            'colors': [
+                "#3498DB", "#2ECC71", "#E74C3C", "#F39C12", "#9B59B6", 
+                "#1ABC9C", "#D35400", "#34495E", "#16A085", "#C0392B"
+            ]
+        }
+        
         # Tab 3: Vista Previa CSV / Resultados Servidor
         self.tab_results = ttk.Frame(self.tabs)
         self.tabs.add(self.tab_results, text="Resultados")
@@ -1032,9 +1072,11 @@ class ClientApp:
                 messagebox.showerror("Error Config", "Cantidad debe ser positiva.")
                 return
 
+            # Actualizar la variable local inmediatamente para la simulación visual
+            self.num_workers_for_sim_display = count
+                
             config_payload = {"mode": mode, "count": count}
             self.send_message({"type": "SET_CONFIG", "payload": config_payload})
-            # self.num_workers_for_sim_display se actualiza con ACK_CONFIG del servidor
         except ValueError:
             messagebox.showerror("Error Config", "Cantidad de workers inválida.")
 
@@ -1235,10 +1277,16 @@ class ClientApp:
         self.ready_queue_sim.clear()
         self.running_processes_sim.clear()
         self.completed_processes_sim.clear()
-        self.gantt_text_sim.config(state=tk.NORMAL)
-        self.gantt_text_sim.delete('1.0', tk.END)
-        self.gantt_text_sim.config(state=tk.DISABLED)
+        self.gantt_canvas.delete("all")
         self.simulation_time_sim = 0
+        
+        # Asegurarse de que el número de workers para la simulación está actualizado
+        try:
+            self.num_workers_for_sim_display = int(self.worker_count_var.get())
+        except ValueError:
+            # Si hay un error, usar el valor actual
+            pass
+            
         valid_input = True
 
         for pid_sim, params in self.process_params_entries.items():
@@ -1253,13 +1301,13 @@ class ClientApp:
                     messagebox.showerror("Error Simulación", msg)
                     valid_input = False
                     break
-
+                
                 proc = Process(pid_sim, filename, arrival, burst, priority)
                 self.processes_to_simulate.append(proc)
                 self.proc_tree_sim.insert("", tk.END, iid=str(pid_sim), values=(
-                    pid_sim, filename, proc.state, arrival, burst, priority,
-                    burst, "N/A", "N/A", "N/A", "N/A"
-                ))
+                     pid_sim, filename, proc.state, arrival, burst, priority,
+                     burst, "N/A", "N/A", "N/A", "N/A"
+                 ))
             except ValueError:
                 messagebox.showerror("Error Simulación", "Entrada inválida para parámetros.")
                 valid_input = False
@@ -1448,39 +1496,140 @@ class ClientApp:
 
     def update_gantt_display_sim(self, time_tick, running_pids_with_threads):
         """Actualiza la visualización del diagrama de Gantt en el tiempo actual."""
-        # Permitir edición
-        self.gantt_text_sim.config(state=tk.NORMAL)
+        # Constantes para dibujo
+        time_width = self.gantt_data['time_width']
+        row_height = self.gantt_data['row_height']
+        margin_top = 30  # Margen superior para etiquetas de tiempo
         
-        # Agregar encabezado de tiempo si es el inicio
+        # Asegurarse de que estamos usando el número correcto de workers
+        num_workers = self.num_workers_for_sim_display
+        
+        # Si es el primer tick, limpiar el canvas e inicializar
         if time_tick == 0:
-            self.gantt_text_sim.delete(1.0, tk.END)
-            self.gantt_text_sim.insert(tk.END, "Tiempo | CPUs/Threads\n")
-            self.gantt_text_sim.insert(tk.END, "-" * 50 + "\n")
-        
-        # Formato de la línea: "t=XX | [P1] [P2] [ ] [P4]"
-        line = f"t={time_tick:2d} | "
-        
-        # Para cada thread/CPU disponible
-        for thread_id in range(self.num_workers_for_sim_display):
-            # Verificar si hay un proceso asignado a este thread en este tiempo
-            pid_assigned = None
-            for pid, thread in running_pids_with_threads:
-                if thread == thread_id:
-                    pid_assigned = pid
-                    break
+            self.gantt_canvas.delete("all")
+            self.gantt_data['last_time'] = -1
+            self.gantt_data['process_colors'] = {}
+            self.gantt_data['process_rows'] = {}
+            self.gantt_data['next_color_index'] = 0
             
-            # Agregar representación visual
-            if pid_assigned is not None:
-                line += f"[P{pid_assigned}] "
-            else:
-                line += "[ ] "
+            # Dibujar etiquetas para CPUs/Threads
+            for i in range(num_workers):
+                y_pos = margin_top + (i + 0.5) * row_height
+                # Etiqueta de CPU/Thread
+                self.gantt_canvas.create_text(
+                    25, y_pos, 
+                    text=f"CPU {i+1}", 
+                    font=('Segoe UI', 9, 'bold'),
+                    fill=self.colors['text_dark']
+                )
+                
+                # Línea separadora entre CPUs
+                if i > 0:
+                    self.gantt_canvas.create_line(
+                        50, margin_top + i * row_height, 
+                        2000, margin_top + i * row_height,
+                        fill=self.colors['border'], 
+                        dash=(4, 2)
+                    )
         
-        # Agregar la línea al diagrama
-        self.gantt_text_sim.insert(tk.END, line + "\n")
-        self.gantt_text_sim.see(tk.END)  # Scroll al final
+        # Actualizar último tiempo visto
+        if time_tick > self.gantt_data['last_time']:
+            self.gantt_data['last_time'] = time_tick
+            
+            # Dibujar línea vertical para el tiempo actual
+            x_pos = 50 + time_tick * time_width
+            self.gantt_canvas.create_line(
+                x_pos, margin_top, 
+                x_pos, margin_top + num_workers * row_height,
+                fill=self.colors['border']
+            )
+            
+            # Dibujar etiqueta de tiempo
+            if time_tick % 5 == 0 or time_tick == 0:  # Mostrar cada 5 unidades
+                self.gantt_canvas.create_text(
+                    x_pos, margin_top - 15, 
+                    text=f"t={time_tick}", 
+                    font=('Segoe UI', 8),
+                    fill=self.colors['text_dark']
+                )
         
-        # Deshabilitar edición
-        self.gantt_text_sim.config(state=tk.DISABLED)
+        # Dibujar barras para procesos en ejecución
+        for pid, thread_id in running_pids_with_threads:
+            # Verificar que thread_id está dentro del rango válido
+            if thread_id >= num_workers:
+                continue  # Ignorar si está fuera de rango
+                
+            # Asignar color consistente a cada proceso
+            if pid not in self.gantt_data['process_colors']:
+                color_idx = self.gantt_data['next_color_index'] % len(self.gantt_data['colors'])
+                self.gantt_data['process_colors'][pid] = self.gantt_data['colors'][color_idx]
+                self.gantt_data['next_color_index'] += 1
+            
+            color = self.gantt_data['process_colors'][pid]
+            
+            # Calcular coordenadas
+            x1 = 50 + time_tick * time_width
+            y1 = margin_top + thread_id * row_height
+            x2 = x1 + time_width
+            y2 = y1 + row_height
+            
+            # Dibujar rectángulo para el proceso
+            rect_id = self.gantt_canvas.create_rectangle(
+                x1, y1, x2, y2,
+                fill=color, 
+                outline=self.colors['border']
+            )
+            
+            # Texto del PID
+            text_id = self.gantt_canvas.create_text(
+                (x1 + x2) / 2, (y1 + y2) / 2,
+                text=f"P{pid}", 
+                fill='white', 
+                font=('Segoe UI', 9, 'bold')
+            )
+            
+            # Guardar información de fila para leyenda
+            self.gantt_data['process_rows'][pid] = thread_id
+        
+        # Actualizar la región de desplazamiento
+        self.gantt_canvas.configure(
+            scrollregion=self.gantt_canvas.bbox("all")
+        )
+        
+        # Si hay muchos ticks, desplazar automáticamente
+        if time_tick > 15:  # Mostrar aproximadamente los últimos 15 ticks
+            self.gantt_canvas.xview_moveto(
+                (time_tick - 15) * time_width / self.gantt_canvas.bbox("all")[2]
+            )
+        
+        # Añadir leyenda de colores para procesos (única vez)
+        if time_tick == 5:  # Añadir leyenda después de unos ticks para tener varios procesos
+            legend_y = margin_top + num_workers * row_height + 20
+            
+            # Título de leyenda
+            self.gantt_canvas.create_text(
+                100, legend_y, 
+                text="Leyenda de Procesos:", 
+                font=('Segoe UI', 10, 'bold'),
+                fill=self.colors['text_dark']
+            )
+            
+            # Mostrar cada proceso con su color
+            legend_x = 250
+            for pid, color in self.gantt_data['process_colors'].items():
+                self.gantt_canvas.create_rectangle(
+                    legend_x, legend_y - 10, 
+                    legend_x + 20, legend_y + 10,
+                    fill=color, 
+                    outline=self.colors['border']
+                )
+                self.gantt_canvas.create_text(
+                    legend_x + 35, legend_y, 
+                    text=f"P{pid}",
+                    font=('Segoe UI', 9),
+                    fill=self.colors['text_dark']
+                )
+                legend_x += 80  # Espacio entre entradas de leyenda
 
     def calculate_and_display_averages_sim(self):
         if not self.completed_processes_sim:
