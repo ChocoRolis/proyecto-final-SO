@@ -42,11 +42,11 @@ def parse_file_regex(filepath: str, pid: str) -> Dict:
     num_palabras = len(palabras)
 
     # --- Debug ---
-    print(f"[DEBUG] Procesado: {filepath}")
-    print(f"[DEBUG] Nombres: {nombres}")
-    print(f"[DEBUG] Fechas: {fechas}")
-    print(f"[DEBUG] Lugares: {lugares}")
-    print(f"[DEBUG] Palabras: {num_palabras}")
+    # print(f"[DEBUG] Procesado: {filepath}")
+    # print(f"[DEBUG] Nombres: {nombres}")
+    # print(f"[DEBUG] Fechas: {fechas}")
+    # print(f"[DEBUG] Lugares: {lugares}")
+    # print(f"[DEBUG] Palabras: {num_palabras}")
 
     return {
         "Nombres": sorted(set(nombres)) if nombres else [],

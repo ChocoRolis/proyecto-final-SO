@@ -10,9 +10,17 @@ import time
 import re
 import math
 import sys # Para sys.stdout.flush()
+import logging
 from .extractor_regex import parse_file_regex as parse_file
 
-
+# --- Configuración del Logger ---
+LOG_FILENAME = 'server_processing.log'
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    filename=LOG_FILENAME,
+    filemode='a'  # 'a' para append, 'w' para overwrite en cada inicio
+)
 
 # --- Configuración ---
 HOST = '127.0.0.1'
@@ -193,54 +201,105 @@ def handle_disconnect(client_socket):
         pass # El socket podría ya estar cerrado, es un error esperado
 
 
+def process_single_file_wrapper(arg_tuple):
+    filepath, processing_mode = arg_tuple
+    filename_base = os.path.basename(filepath)
 
-def process_single_file_wrapper(filepath_tuple):
-    import os
-    filepath = filepath_tuple[0]
-    filename = os.path.basename(filepath)
+    pid_label = ""
+    worker_id_str = ""
+
+    if processing_mode == 'threads':
+        pid_label = "THREAD ID"
+        worker_id_str = str(threading.get_ident())
+    elif processing_mode == 'forks':
+        pid_label = "FORK PID"
+        worker_id_str = str(os.getpid())
+    else:
+        pid_label = "UNKNOWN WORKER ID"
+        worker_id_str = "N/A"
+
+    descriptive_worker_id = f"{pid_label}_{worker_id_str}"
+
+    # --- Mensaje de inicio a CONSOLA ---
+    # print(f"\n[{pid_label}: {worker_id_str}] Iniciando procesamiento de: {filename_base}")
+    sys.stdout.flush()
+    # --- Fin mensaje de inicio a CONSOLA ---
+
+    # Log de inicio al ARCHIVO DE LOG
+    logging.info(f"[{descriptive_worker_id}] Iniciando procesamiento de archivo: {filepath}")
 
     try:
-        result_data = parse_file(filepath, pid="server")  # o parse_file_regex
+        # Llamar a tu función de extracción Regex
+        # Tu función parse_file podría tener sus propios prints.
+        # Si quieres que esos también vayan al log, necesitarías modificarla
+        # para que acepte un logger o use el logger global.
+        raw_result_from_extractor = parse_file(filepath, pid=descriptive_worker_id)
+        
+        # Ejemplo de log de detalles del extractor al ARCHIVO DE LOG
+        logging.info(f"[{descriptive_worker_id}] Datos extraídos de {filename_base}: "
+                     f"Emails: {len(raw_result_from_extractor.get('Emails', []))}, "
+                     f"Fechas: {len(raw_result_from_extractor.get('Fechas', []))}, "
+                     f"Palabras: {raw_result_from_extractor.get('ConteoPalabras', 0)}")
 
-        return {
-            "pid_server": os.getpid(),
-            "filename": filename,
-            "data": {
-                "nombres_encontrados": result_data.get("Nombres", []),
-                "lugares_encontrados": result_data.get("Lugares", []),
-                "dates_found": result_data.get("Fechas", []),
-                "word_count": result_data.get("ConteoPalabras", 0)
-            },
-            "status": result_data.get("estado", "success"),
-            "error": result_data.get("error", "")
-        }
 
-    except FileNotFoundError:
-        return {
-            "pid_server": os.getpid(),
-            "filename": filename,
-            "data": {
-                "nombres_encontrados": [],
-                "lugares_encontrados": [],
-                "dates_found": [],
-                "word_count": 0
-            },
-            "status": "error",
-            "error": "File not found."
-        }
+        status_from_extractor = raw_result_from_extractor.get("status",
+                                raw_result_from_extractor.get("estado", "error"))
+        error_from_extractor = raw_result_from_extractor.get("error", "")
+        
+        final_filename = raw_result_from_extractor.get("filename",
+                           raw_result_from_extractor.get("archivo", filename_base))
+
+        if status_from_extractor == "success":
+            # --- Mensaje de fin a CONSOLA ---
+            # print(f"\n[{pid_label}: {worker_id_str}] Finalizado procesamiento de: {final_filename} (Éxito)")
+            # sys.stdout.flush()
+            # --- Fin mensaje de fin a CONSOLA ---
+            logging.info(f"[{descriptive_worker_id}] Finalizado procesamiento de {final_filename} con ÉXITO.")
+
+            data_for_client = {
+                "emails_found": raw_result_from_extractor.get("Emails", []),
+                "dates_found": raw_result_from_extractor.get("Fechas", []),
+                "word_count": raw_result_from_extractor.get("ConteoPalabras", 0)
+            }
+            
+            final_result_for_server = {
+                "pid_server": descriptive_worker_id,
+                "filename": final_filename,
+                "data": data_for_client,
+                "status": "success",
+                "error": "" 
+            }
+        else: # Error ocurrió dentro de parse_file
+            # --- Mensaje de fin a CONSOLA (con error del extractor) ---
+            print(f"\n[{pid_label}: {worker_id_str}] Error durante extracción para {final_filename} (ver log).")
+            sys.stdout.flush()
+            # --- Fin mensaje de fin a CONSOLA ---
+            logging.error(f"[{descriptive_worker_id}] Error durante extracción para {final_filename}: {error_from_extractor}")
+            
+            final_result_for_server = {
+                "pid_server": descriptive_worker_id,
+                "filename": final_filename,
+                "data": {"emails_found": [], "dates_found": [], "word_count": 0},
+                "status": "error",
+                "error": error_from_extractor
+            }
+        return final_result_for_server
 
     except Exception as e:
+        # --- Mensaje de fin a CONSOLA (con error INESPERADO en wrapper) ---
+        print(f"\n[{pid_label}: {worker_id_str}] Error INESPERADO en wrapper para {filename_base} (ver log).")
+        sys.stdout.flush()
+        # --- Fin mensaje de fin a CONSOLA ---
+        logging.error(
+            f"[{descriptive_worker_id}] Error INESPERADO en wrapper para {filename_base}: {type(e).__name__} - {e}",
+            exc_info=True # Incluye el traceback en el log
+        )
         return {
-            "pid_server": os.getpid(),
-            "filename": filename,
-            "data": {
-                "nombres_encontrados": [],
-                "lugares_encontrados": [],
-                "dates_found": [],
-                "word_count": 0
-            },
+            "pid_server": descriptive_worker_id,
+            "filename": filename_base,
+            "data": {"emails_found": [], "dates_found": [], "word_count": 0},
             "status": "error",
-            "error": str(e)
+            "error": f"Error inesperado en wrapper: {str(e)}"
         }
 
 def manage_client_batch_processing():
@@ -249,17 +308,17 @@ def manage_client_batch_processing():
     y los procesa uno a la vez.
     """
     while True:
-        new_batch_event.wait() # Espera hasta que haya algo en la cola
+        new_batch_event.wait()
 
         client_socket, assigned_files, event_name, config = (None,) * 4
 
-        with state_lock: # Proteger el pop de la cola
+        with state_lock:
             if client_batch_processing_queue:
                 item = client_batch_processing_queue.popleft()
                 client_socket, assigned_files, event_name, config = item
             else:
-                new_batch_event.clear() # No hay más, esperar de nuevo
-                continue # Volver al inicio del while
+                new_batch_event.clear()
+                continue
 
         client_addr_log, is_client_valid = "Dirección Desconocida", False
         with state_lock:
@@ -274,11 +333,11 @@ def manage_client_batch_processing():
         if not is_client_valid or not assigned_files:
             continue
 
-        # server_log(f"Trabajador: Intentando lock para {client_addr_log}")
-        with processing_lock: # Adquiere lock
-            # server_log(f"Trabajador: lock adquirido para {client_addr_log}")
+        with processing_lock:
             start_time_batch = time.time()
             results = []
+            # Para almacenar los PIDs/IDs de los workers que participaron en este lote
+            worker_identifiers_used = set() # Usamos un set para evitar duplicados
 
             try:
                 send_to_client(client_socket, {
@@ -287,7 +346,7 @@ def manage_client_batch_processing():
                 })
 
                 num_workers = config.get('count', DEFAULT_CLIENT_CONFIG['count'])
-                mode = config.get('mode', DEFAULT_CLIENT_CONFIG['mode'])
+                processing_mode = config.get('mode', DEFAULT_CLIENT_CONFIG['mode'])
                 if num_workers < 1:
                     num_workers = 1
 
@@ -296,24 +355,47 @@ def manage_client_batch_processing():
                 ]
 
                 executor_cls = None
-                if mode == 'threads':
+                if processing_mode == 'threads':
                     executor_cls = concurrent.futures.ThreadPoolExecutor
-                elif mode == 'forks':
+                elif processing_mode == 'forks':
                     executor_cls = concurrent.futures.ProcessPoolExecutor
                 else:
-                    raise ValueError(f"Modo de proc. inválido: {mode}")
+                    raise ValueError(f"Modo de proc. inválido: {processing_mode}")
 
                 with executor_cls(max_workers=num_workers) as executor:
-                    # Usamos una tupla de un solo elemento para el wrapper
-                    map_input = [(fp,) for fp in full_paths]
-                    map_results = list(executor.map(process_single_file_wrapper, map_input))
-                    results.extend(map_results)
+                    map_input = [(fp, processing_mode) for fp in full_paths]
+                    
+                    # executor.map devuelve un iterador. Lo convertimos a lista
+                    # para asegurar que todos los trabajos se completen antes de continuar.
+                    # Esto también nos permite acceder a los resultados para obtener los PIDs.
+                    map_results_list = list(executor.map(process_single_file_wrapper, map_input))
+                    
+                    results.extend(map_results_list)
+
+                    # Recopilar los PIDs/IDs de los workers de los resultados
+                    for res_item in map_results_list:
+                        if "pid_server" in res_item:
+                            worker_identifiers_used.add(res_item["pid_server"])
+
 
                 duration = time.time() - start_time_batch
-                server_log(
+                server_log( # ESTA ES LA LÍNEA QUE MENCIONASTE
                     f"Lote para {client_addr_log} ({event_name}) "
                     f"completado en {duration:.2f}s."
                 )
+
+                # --- IMPRIMIR LOS WORKERS UTILIZADOS ---
+                if worker_identifiers_used:
+                    # El log ya imprime una nueva línea antes.
+                    # Ajustamos el mensaje para que sea más legible.
+                    # server_log(f"    Workers utilizados para este lote: {sorted(list(worker_identifiers_used))}")
+                    print(f"    Workers utilizados para este lote ({processing_mode}):")
+                    for worker_id_str in sorted(list(worker_identifiers_used)):
+                        print(f"      - {worker_id_str}")
+                    sys.stdout.flush() # Asegurar que se imprima
+                # --- FIN DE IMPRIMIR WORKERS ---
+
+
                 send_to_client(client_socket, {
                     "type": "PROCESSING_COMPLETE",
                     "payload": {"event": event_name, "status": "success",
@@ -328,10 +410,9 @@ def manage_client_batch_processing():
                         "payload": {"event": event_name, "status": "failure",
                                     "message": str(e), "results": []}
                     })
-                except: # Cliente ya podría estar desconectado
+                except:
                     pass
-            # El processing_lock se libera automáticamente al salir del 'with'
-
+            # El processing_lock se libera automáticamente
 
 # --- Hilo Manejador de Cliente ---
 def handle_client(client_socket, addr):
