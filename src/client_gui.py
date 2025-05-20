@@ -43,7 +43,7 @@ class ClientApp:
         )
         # Adaptar estos encabezados a los datos que realmente envíe el servidor
         self.csv_headers = [
-            "PID_Servidor_Sim", "NombreArchivo", "Emails", "Fechas",
+            "PID_Servidor_Sim", "NombreArchivo", "Nombres", "Lugares", "Fechas",
             "ConteoPalabras", "EstadoServidor", "MsgErrorServidor"
         ]
         
@@ -800,30 +800,34 @@ class ClientApp:
         results_label.pack(pady=10)
         
         # Tabla para vista previa del CSV
-        columns_csv = ("pid", "filename", "emails", "dates", "wordcount", "status", "error")
+        columns_csv = ("pid", "filename", "nombres", "lugares", "dates", "wordcount", "status", "error")
         self.results_tree = ttk.Treeview(
             self.tab_results, columns=columns_csv, show="headings", height=10
         )
+
         
-        # Configurar encabezados
+              # Configurar encabezados
         self.results_tree.heading("pid", text="PID Servidor")
         self.results_tree.column("pid", width=80, anchor="center")
-        
+
         self.results_tree.heading("filename", text="Archivo")
         self.results_tree.column("filename", width=150, anchor="w")
-        
-        self.results_tree.heading("emails", text="Emails")
-        self.results_tree.column("emails", width=120, anchor="w")
-        
+
+        self.results_tree.heading("nombres", text="Nombres")
+        self.results_tree.column("nombres", width=150, anchor="w")
+
+        self.results_tree.heading("lugares", text="Lugares")
+        self.results_tree.column("lugares", width=150, anchor="w")
+
         self.results_tree.heading("dates", text="Fechas")
         self.results_tree.column("dates", width=120, anchor="w")
-        
+
         self.results_tree.heading("wordcount", text="# Palabras")
         self.results_tree.column("wordcount", width=80, anchor="center")
-        
+
         self.results_tree.heading("status", text="Estado")
         self.results_tree.column("status", width=80, anchor="center")
-        
+
         self.results_tree.heading("error", text="Error")
         self.results_tree.column("error", width=150, anchor="w")
 
@@ -1756,18 +1760,23 @@ class ClientApp:
                 
                 # Datos extraídos del archivo
                 data = result.get("data", {})
-                emails = ", ".join(data.get("emails_found", []))[:50] + "..." if len(emails := data.get("emails_found", [])) > 3 else ", ".join(emails)
-                dates = ", ".join(data.get("dates_found", []))[:50] + "..." if len(dates := data.get("dates_found", [])) > 3 else ", ".join(dates)
+                nombres_raw = data.get("nombres_encontrados", [])
+                lugares_raw = data.get("lugares_encontrados", [])
+                fechas_raw = data.get("dates_found", [])
                 word_count = str(data.get("word_count", 0))
                 
+                nombres = ", ".join(nombres_raw)[:50] + "..." if len(nombres_raw) > 3 else ", ".join(nombres_raw)
+                lugares = ", ".join(lugares_raw)[:50] + "..." if len(lugares_raw) > 3 else ", ".join(lugares_raw)
+                fechas = ", ".join(fechas_raw)[:50] + "..." if len(fechas_raw) > 3 else ", ".join(fechas_raw)
+
                 status = result.get("status", "")
                 error = result.get("error", "")
                 
                 self.results_tree.insert("", "end", values=(
-                    pid_server, filename, emails, dates, 
+                    pid_server, filename, nombres, lugares, fechas, 
                     word_count, status, error
                 ))
-                
+            
             except Exception as e:
                 print(f"Error al mostrar resultado: {e}")
 
@@ -1775,6 +1784,8 @@ class ClientApp:
         self.status_label.config(
             text=f"{len(self.server_results_for_csv)} resultados recibidos del servidor."
         )
+
+
 
     def save_results_to_csv(self):
         """Guarda los resultados en un archivo CSV."""
@@ -1787,29 +1798,31 @@ class ClientApp:
             with open(self.output_csv_path, 'w', newline='', encoding='utf-8') as f:
                 writer = csv.writer(f)
                 writer.writerow(self.csv_headers)  # Encabezados
-                
+
                 for result in self.server_results_for_csv:
                     pid = result.get("pid_server", "")
                     filename = result.get("filename", "")
-                    
+
                     # Datos extraídos
                     data = result.get("data", {})
-                    emails = "|".join(data.get("emails_found", []))
-                    dates = "|".join(data.get("dates_found", []))
+                    nombres = "|".join(data.get("nombres_encontrados", []))
+                    lugares = "|".join(data.get("lugares_encontrados", []))
+                    fechas = "|".join(data.get("dates_found", []))
                     word_count = str(data.get("word_count", 0))
-                    
+
                     status = result.get("status", "")
                     error = result.get("error", "")
-                    
-                    writer.writerow([pid, filename, emails, dates, word_count, status, error])
-            
+
+                    writer.writerow([pid, filename, nombres, lugares, fechas, word_count, status, error])
+
             self.status_label.config(
                 text=f"Resultados guardados en {self.output_csv_path}"
             )
             messagebox.showinfo("Info", f"Resultados guardados en:\n{self.output_csv_path}")
-        
+
         except Exception as e:
             messagebox.showerror("Error", f"Error al guardar CSV: {e}")
+
 
 
 if __name__ == "__main__":

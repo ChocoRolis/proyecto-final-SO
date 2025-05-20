@@ -1,5 +1,3 @@
-# src/extractor_regex.py
-
 import re
 from typing import Dict
 
@@ -11,41 +9,51 @@ def parse_file_regex(filepath: str, pid: str) -> Dict:
         return {
             "pid": pid,
             "archivo": filepath.split('/')[-1],
-            "emails": "",
+            "nombres": "",
             "fechas": "",
+            "lugares": "",
             "num_palabras": 0,
             "estado": "",
             "error": f"Error al leer archivo: {str(e)}"
         }
 
-    # --- Correos electrónicos más flexibles ---
-    correos = re.findall(r"[a-zA-Z0-9_.+%-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+", content)
+    # --- Nombres (ej: John Smith, Anna Karlsson) ---
+    nombres = re.findall(r'\b[A-ZÁÉÍÓÚÑÅÄÖ][a-záéíóúñåäö]+(?:\s+[A-ZÁÉÍÓÚÑÅÄÖ][a-záéíóúñåäö]+)+\b', content)
 
-    # --- Fechas en formatos comunes y naturales (es/en/sv) ---
+    # --- Fechas (igual que antes) ---
     fechas = re.findall(
         r'\b(?:\d{1,2}(?:st|nd|rd|th)?(?:\s*(?:de\s+)?(?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre|'
         r'jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|maj))?(?:\s*[\.,]?\s*\d{2,4})?)\b',
         content, flags=re.IGNORECASE)
 
-    # También fechas numéricas como 12/03/1945 o 1945-03-12
     fechas.extend(re.findall(r"\b(?:\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4}|\d{4}[/\-]\d{1,2}[/\-]\d{1,2})\b", content))
+
+    # --- Lugares/Ciudades ---
+    ciudades_comunes = [
+        "New York", "Chicago", "Los Angeles", "San Francisco", "Boston",
+        "Minneapolis", "Detroit", "Miami", "Stockholm", "Göteborg", "Malmö",
+        "Uppsala", "Lund", "Karlstad", "Örebro", "Västerås", "Linköping"
+    ]
+    ciudades_regex = r'\b(?:' + '|'.join(re.escape(city) for city in ciudades_comunes) + r')\b'
+    lugares = re.findall(ciudades_regex, content)
 
     # --- Conteo de palabras ---
     palabras = re.findall(r'\b\w+\b', content)
     num_palabras = len(palabras)
 
-    # --- Debug en consola ---
+    # --- Debug ---
     print(f"[DEBUG] Procesado: {filepath}")
-    print(f"[DEBUG] Emails: {correos}")
+    print(f"[DEBUG] Nombres: {nombres}")
     print(f"[DEBUG] Fechas: {fechas}")
+    print(f"[DEBUG] Lugares: {lugares}")
     print(f"[DEBUG] Palabras: {num_palabras}")
 
     return {
-        "Emails": sorted(set(correos)) if correos else [],
+        "Nombres": sorted(set(nombres)) if nombres else [],
         "Fechas": sorted(set(fechas)) if fechas else [],
+        "Lugares": sorted(set(lugares)) if lugares else [],
         "ConteoPalabras": num_palabras,
         "filename": filepath.replace("\\", "/").split("/")[-1],
         "status": "success",
         "error": ""
     }
-

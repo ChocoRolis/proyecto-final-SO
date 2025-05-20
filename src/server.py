@@ -144,37 +144,50 @@ def handle_disconnect(client_socket):
 
 
 def process_single_file_wrapper(filepath_tuple):
+    import os
     filepath = filepath_tuple[0]
     filename = os.path.basename(filepath)
 
     try:
-        result_data = parse_file(filepath, pid="server")
+        result_data = parse_file(filepath, pid="server")  # o parse_file_regex
 
         return {
             "pid_server": os.getpid(),
             "filename": filename,
             "data": {
-                "emails_found": result_data.get("Emails", []),
+                "nombres_encontrados": result_data.get("Nombres", []),
+                "lugares_encontrados": result_data.get("Lugares", []),
                 "dates_found": result_data.get("Fechas", []),
                 "word_count": result_data.get("ConteoPalabras", 0)
             },
-            "status": "success",
-            "error": ""
+            "status": result_data.get("estado", "success"),
+            "error": result_data.get("error", "")
         }
 
     except FileNotFoundError:
         return {
             "pid_server": os.getpid(),
             "filename": filename,
-            "data": {"emails_found": [], "dates_found": [], "word_count": 0},
+            "data": {
+                "nombres_encontrados": [],
+                "lugares_encontrados": [],
+                "dates_found": [],
+                "word_count": 0
+            },
             "status": "error",
             "error": "File not found."
         }
+
     except Exception as e:
         return {
             "pid_server": os.getpid(),
             "filename": filename,
-            "data": {"emails_found": [], "dates_found": [], "word_count": 0},
+            "data": {
+                "nombres_encontrados": [],
+                "lugares_encontrados": [],
+                "dates_found": [],
+                "word_count": 0
+            },
             "status": "error",
             "error": str(e)
         }
