@@ -14,28 +14,29 @@ from .scheduler import AVAILABLE_SCHEDULERS, SchedulerFCFS, SchedulerRR, Schedul
 
 class ClientApp:
     def __init__(self, root):
+        """Inicializa la aplicación."""
         self.root = root
         self.root.title("Sistema de Simulación de Scheduling OS")
         self.root.geometry("1200x850")
         
         # Configurar tema y estilo visual
         self.setup_theme()
-
+        
+        # Directorios para resultados
+        self._setup_output_dir()
+        
+        # Variables de estado del cliente
+        self.receive_thread = None
         self.client_socket = None
         self.connected = False
         self.server_addr = tk.StringVar(value="127.0.0.1")
         self.server_port = tk.StringVar(value="65432")
         self.event_name_var = tk.StringVar(value="data_event")
+        self.selected_event_unsub = tk.StringVar(value="")
         self.subscribed_events = set()
         self.message_queue = queue.Queue()
-
-        self.processing_mode_var = tk.StringVar(value="threads")
-        self.worker_count_var = tk.IntVar(value=2)
-
-        self.server_assigned_files = []
-        self.files_for_simulation_vars: dict[str, tk.BooleanVar] = {}
-        self.process_params_entries: dict = {}
-
+        
+        # Identificación del cliente y salida CSV
         self.client_id = f"client_{os.getpid()}_{int(time.time())}"
         self.output_csv_path = os.path.join(
             "output", f"results_{self.client_id}.csv"
@@ -45,23 +46,45 @@ class ClientApp:
             "PID_Servidor_Sim", "NombreArchivo", "Emails", "Fechas",
             "ConteoPalabras", "EstadoServidor", "MsgErrorServidor"
         ]
+        
+        self.processing_mode_var = tk.StringVar(value="threads")
+        self.worker_count_var = tk.IntVar(value=2)
+        
+        # Variables para la simulación visual
         self.server_results_for_csv = []
-
+        self.server_assigned_files = []
+        self.files_for_simulation_vars = {}
+        self.process_params_entries = {}
         self.processes_to_simulate = []
         self.ready_queue_sim = []
         self.running_processes_sim = []
         self.completed_processes_sim = []
         self.simulation_time_sim = 0
-        self.scheduler_sim = SchedulerFCFS()
-        self.selected_algorithm_var = tk.StringVar(value="FCFS")
-        self.process_pid_counter_sim = 0
         self.simulation_running_sim = False
+        self.process_pid_counter_sim = 0
+        self.selected_algorithm_var = tk.StringVar(value="FCFS")
+        self.scheduler_sim = None
         self.simulation_update_ms = 500
-        self.num_workers_for_sim_display = 2
+        self.gantt_colors = {
+            "ready": "#b3e0ff",  # Azul claro
+            "running": "#66cc99",  # Verde claro
+            "terminated": "#ffcc99"  # Naranja claro
+        }
+        
+        # Canvas para gráficos simulados
+        self.canvas_style = {
+            "bg": "#f5f5f5",
+            "border_width": 1,
+            "border_color": "#cccccc"
+        }
+        
+        # Para simulación visual Gantt de multithread
+        self.num_workers_for_sim_display = self.worker_count_var.get()
+        
+        # Quantum para RR y otras configuraciones del scheduler
         self.quantum_var = tk.IntVar(value=2)
-
+        
         self._create_widgets()
-        self._setup_output_dir()
         self.root.after(100, self.check_message_queue)
 
     def setup_theme(self):
@@ -458,12 +481,35 @@ class ClientApp:
             sub_frame, textvariable=self.event_name_var, width=15
         ).grid(row=0, column=1, padx=8, pady=8, sticky="we")
 
+        # Crear un frame para botones de suscripción
+        sub_buttons_frame = ttk.Frame(sub_frame)
+        sub_buttons_frame.grid(row=1, column=0, columnspan=2, padx=5, pady=8, sticky="we")
+
         self.sub_button = ttk.Button(
-            sub_frame, text="Suscribir",
+            sub_buttons_frame, text="Suscribir",
             command=self.subscribe_event, state=tk.DISABLED,
             style='Action.TButton'
         )
-        self.sub_button.grid(row=1, column=0, columnspan=2, padx=5, pady=8, sticky="we")
+        self.sub_button.pack(side=tk.LEFT, fill="x", expand=True, padx=(0, 2))
+
+        # Nuevo botón para desuscribirse
+        self.unsub_button = ttk.Button(
+            sub_buttons_frame, text="Desuscribir",
+            command=self.unsubscribe_event, state=tk.DISABLED,
+            style='Action.TButton'
+        )
+        self.unsub_button.pack(side=tk.RIGHT, fill="x", expand=True, padx=(2, 0))
+
+        # Añadir lista desplegable para desuscribirse
+        ttk.Label(sub_frame, text="Eventos suscritos:").grid(
+            row=3, column=0, padx=8, pady=(15, 5), sticky="w"
+        )
+        
+        self.unsub_combobox = ttk.Combobox(
+            sub_frame, textvariable=self.selected_event_unsub, state="readonly", width=15
+        )
+        self.unsub_combobox.grid(row=3, column=1, padx=8, pady=(15, 5), sticky="we")
+        self.unsub_combobox.bind('<<ComboboxSelected>>', self.on_event_selected_for_unsub)
 
         # Mejorar visibilidad del estado de suscripción
         self.subscribed_label = ttk.Label(
@@ -471,7 +517,7 @@ class ClientApp:
             style='StatusInfo.TLabel', padding=(8, 5)
         )
         self.subscribed_label.grid(
-            row=2, column=0, columnspan=2, padx=5, pady=(10, 5), sticky="we"
+            row=4, column=0, columnspan=2, padx=5, pady=(10, 5), sticky="we"
         )
 
         # Separador visual
@@ -837,6 +883,7 @@ class ClientApp:
             self.disconnect_button.config(state=tk.NORMAL)
             self.apply_config_button.config(state=tk.NORMAL)
             self.sub_button.config(state=tk.NORMAL)
+            self.unsub_button.config(state=tk.NORMAL)
 
             self.receive_thread = threading.Thread(
                 target=self.listen_to_server, daemon=True
@@ -870,6 +917,7 @@ class ClientApp:
             self.disconnect_button.config(state=tk.DISABLED)
             self.apply_config_button.config(state=tk.DISABLED)
             self.sub_button.config(state=tk.DISABLED)
+            self.unsub_button.config(state=tk.DISABLED)
 
             self.subscribed_events.clear()
             self.update_subscribed_label()
@@ -1006,6 +1054,19 @@ class ClientApp:
                     print(f"ACK_SUB recibido con payload inesperado: {payload}")
                     self.status_label.config(text="Confirmación suscripción recibida (detalle incompleto).")
 
+            elif msg_type == "ACK_UNSUB":
+                # Manejar ACK_UNSUB del servidor
+                event_name = payload # El payload es el nombre del evento (string)
+                if isinstance(event_name, str) and event_name:
+                    if event_name in self.subscribed_events:
+                        self.subscribed_events.remove(event_name)
+                    print(f"Confirmación de desuscripción recibida para evento: {event_name}")
+                    self.status_label.config(text=f"Desuscripción de '{event_name}' confirmada.")
+                    self.update_subscribed_label()
+                else:
+                    print(f"ACK_UNSUB recibido con payload inesperado: {payload}")
+                    self.status_label.config(text="Confirmación desuscripción recibida (detalle incompleto).")
+
             elif msg_type == "START_PROCESSING":
                 # Inicio de procesamiento de archivos
                 self.server_assigned_files = payload.get('files', [])
@@ -1087,13 +1148,48 @@ class ClientApp:
             return
         self.send_message({"type": "SUB", "payload": event})
 
+    def unsubscribe_event(self):
+        """Desuscribir al cliente de un evento específico."""
+        # Primero intentar usar el evento seleccionado en el combobox
+        event = self.selected_event_unsub.get()
+        
+        # Si no hay selección en el combobox, usar el campo de texto
+        if not event:
+            event = self.event_name_var.get()
+        
+        if not event:
+            messagebox.showwarning("Desuscripción", "Selecciona o ingresa un nombre de evento.")
+            return
+        
+        # Si el evento no está en la lista de suscritos, mostrar mensaje
+        if event not in self.subscribed_events:
+            messagebox.showwarning("Desuscripción", f"No estás suscrito al evento '{event}'.")
+            return
+            
+        self.send_message({"type": "UNSUB", "payload": event})
+        
+    def on_event_selected_for_unsub(self, event=None):
+        """Cuando se selecciona un evento en el combobox de desuscripción."""
+        selected = self.selected_event_unsub.get()
+        if selected:
+            # También actualizar el campo de texto para mantener consistencia
+            self.event_name_var.set(selected)
+
     def update_subscribed_label(self):
         """Actualiza la etiqueta que muestra las suscripciones activas."""
         if not self.subscribed_events:
             self.subscribed_label.config(text="Suscrito a: Ninguno")
+            # Actualizar el combobox para desuscripción
+            self.unsub_combobox['values'] = []
+            self.unsub_combobox.set('')
         else:
-            events_text = ", ".join(sorted(self.subscribed_events))
+            events_list = sorted(self.subscribed_events)
+            events_text = ", ".join(events_list)
             self.subscribed_label.config(text=f"Suscrito a: {events_text}")
+            # Actualizar el combobox para desuscripción
+            self.unsub_combobox['values'] = events_list
+            if not self.selected_event_unsub.get() in events_list:
+                self.unsub_combobox.set('')
 
     # --- UI Selección Archivos y Parámetros Simulación ---
     def display_file_selection_ui(self):
