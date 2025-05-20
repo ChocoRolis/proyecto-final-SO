@@ -35,6 +35,9 @@ class Process:
         self.waiting_time = 0         # Tiempo total que el proceso pasa en la cola Ready esperando CPU.
         self.turnaround_time = 0      # Tiempo total desde la llegada hasta la finalización (Completion - Arrival).
         self.state = "New"            # Estado actual del proceso: New, Ready, Running, Terminated.
+        self.turnaround_formula=""    # Fórmula para calcular el tiempo de turnaround (si se necesita).
+        self.waiting_formula=""       # Fórmula para calcular el tiempo de espera (si se necesita).
+
 
         # --- Atributos adicionales (opcionales) ---
         # self.priority = 0           # Para algoritmos basados en prioridad.

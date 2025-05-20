@@ -10,7 +10,7 @@ import time
 import os
 
 from .process import Process
-from .scheduler import AVAILABLE_SCHEDULERS, SchedulerFCFS, SchedulerRR, SchedulerSJF
+from .scheduler import AVAILABLE_SCHEDULERS, SchedulerFCFS, SchedulerRR, SchedulerSJF, SchedulerPriorityNP, SchedulerHRRN
 
 class ClientApp:
     def __init__(self, root):
@@ -646,12 +646,15 @@ class ClientApp:
 
         # Encabezados para la tabla
         columns = ("pid_sim", "filename", "arrival", "burst", "start", 
-                   "completion", "turnaround", "waiting", "state")
+                   "completion", "turnaround", "waiting", "state", "turnaround_formula", "waiting_formula")
         self.proc_tree_sim = ttk.Treeview(
             self.tab_proc_table, columns=columns, show="headings", height=10
         )
         
         # Configurar encabezados con estilo
+        self.proc_tree_sim.heading("turnaround_formula", text="TAT operación")
+        self.proc_tree_sim.column("turnaround_formula", width=120, anchor="center")
+        
         self.proc_tree_sim.heading("pid_sim", text="PID")
         self.proc_tree_sim.column("pid_sim", width=40, anchor="center")
         
@@ -1405,8 +1408,7 @@ class ClientApp:
                 proc = Process(pid_sim, filename, arrival, burst, priority)
                 self.processes_to_simulate.append(proc)
                 self.proc_tree_sim.insert("", tk.END, iid=str(pid_sim), values=(
-                     pid_sim, filename, proc.state, arrival, burst, priority,
-                     burst, "N/A", "N/A", "N/A", "N/A"
+                     pid_sim, filename, arrival, burst, -1, -1, -1, -1, "New", "N/A","N/A",
                  ))
             except ValueError:
                 messagebox.showerror("Error Simulación", "Entrada inválida para parámetros.")
@@ -1470,28 +1472,59 @@ class ClientApp:
             self.num_workers_for_sim_display - len(self.running_processes_sim)
         )
 
-        if isinstance(self.scheduler_sim, SchedulerSJF): # SJF No Preemptivo
-            self.ready_queue_sim.sort(key=lambda p: p.burst_time)
-        # ... (más ordenamientos para otros schedulers si es necesario) ...
+        if isinstance(self.scheduler_sim, SchedulerHRRN) or isinstance(self.scheduler_sim, SchedulerSJF) or isinstance(self.scheduler_sim, SchedulerFCFS) or isinstance(self.scheduler_sim, SchedulerPriorityNP):
+            # Solo ejecuta un proceso a la vez
+            if not self.running_processes_sim and self.ready_queue_sim:
+                # Si no hay procesos listos, avanza el tiempo al siguiente proceso que llegue
+                arrived = [p for p in self.ready_queue_sim if p.arrival_time <= current_time]
+                if not arrived:
+                    next_arrival = min(p.arrival_time for p in self.ready_queue_sim)
+                    self.simulation_time_sim = next_arrival
+                    self.root.after(self.simulation_update_ms, self.simulation_step_visual)
+                    return
 
-        while available_threads_sim > 0 and self.ready_queue_sim:
-            next_process = self.scheduler_sim.schedule(
-                self.ready_queue_sim, current_time,
-                self.running_processes_sim, available_threads_sim
-            ) # Este método DEBE quitar el proceso de ready_queue_sim si lo selecciona
-
-            if next_process:
-                next_process.state = "Running"
-                if next_process.start_time == -1:
-                    next_process.start_time = current_time
-                self.running_processes_sim.append(next_process)
-                self.update_process_table_sim(
-                    next_process.pid,
-                    {"Estado": "Running", "Comienzo": next_process.start_time}
+                next_process = self.scheduler_sim.schedule(
+                    self.ready_queue_sim, self.simulation_time_sim,
+                    self.running_processes_sim, 1
                 )
-                available_threads_sim -= 1
-            else: # No más procesos adecuados según el scheduler
-                break
+                if next_process:
+                    next_process.state = "Running"
+                    if next_process.start_time == -1:
+                        next_process.start_time = self.simulation_time_sim
+                    self.running_processes_sim.append(next_process)
+                    self.update_process_table_sim(
+                        next_process.pid,
+                        {"state": "Running", "start": next_process.start_time}
+                    )
+                    # Ejecuta el proceso completo de una vez (no preemptivo)
+                    next_process.remaining_burst_time = 0
+                    for t in range(next_process.start_time, next_process.start_time + next_process.burst_time):
+                        self.update_gantt_display_sim(t, [(next_process.pid, 0)])
+                    self.handle_process_completion_sim(next_process, next_process.start_time + next_process.burst_time)
+                    self.simulation_time_sim = next_process.start_time + next_process.burst_time
+                    self.root.after(self.simulation_update_ms, self.simulation_step_visual)
+                    return
+        else:
+            # --- Algoritmos preemptivos o RR (deja tu código actual aquí) ---
+            while available_threads_sim > 0 and self.ready_queue_sim:
+                next_process = self.scheduler_sim.schedule(
+                    self.ready_queue_sim, current_time,
+                    self.running_processes_sim, available_threads_sim
+                )
+                if next_process:
+                    next_process.state = "Running"
+                    if next_process.start_time == -1:
+                        next_process.start_time = current_time
+                    self.running_processes_sim.append(next_process)
+                    self.update_process_table_sim(
+                        next_process.pid,
+                        {"state": "Running", "start": next_process.start_time}
+                    )
+                    available_threads_sim -= 1
+                else:
+                    break    
+
+
 
         # 4. Simular ejecución y manejo de RR
         gantt_current_tick_sim = []
@@ -1548,12 +1581,22 @@ class ClientApp:
         process.completion_time = completion_time
         process.turnaround_time = process.completion_time - process.arrival_time
         process.waiting_time = process.turnaround_time - process.burst_time
+        
+        process.turnaround_formula = f"{process.completion_time} - {process.arrival_time} = {process.turnaround_time}"
+        process.waiting_formula = f"{process.turnaround_time} - {process.burst_time} = {process.waiting_time}"
 
         self.completed_processes_sim.append(process)
         self.update_process_table_sim(process.pid, {
-             "Estado": "Terminated", "Fin": process.completion_time,
-             "Retorno": process.turnaround_time, "Espera": process.waiting_time,
+             "state": "Terminated", 
+             "completion": process.completion_time,
+             "turnaround": process.turnaround_time, 
+             "waiting": process.waiting_time,
+             "turnaround_formula": process.turnaround_formula,
+             "waiting_formula": process.waiting_formula,
+             "burst": process.burst_time,
+             "start": process.start_time,
              "Restante": 0
+
          })
 
     def update_process_table_sim(self, pid_sim, updates):
@@ -1585,7 +1628,9 @@ class ClientApp:
                 "start": 4,
                 "completion": 5,
                 "turnaround": 6,
-                "waiting": 7
+                "waiting": 7,
+                "turnaround_formula": 9,
+                "waiting_formula": 10, 
             }
             
             for key, value in updates.items():

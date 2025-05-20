@@ -161,7 +161,7 @@ class SchedulerRR(SchedulerBase):
         return f"{self.__class__.__name__}(Quantum={self.quantum})"
 
 
-class SchedulerHRRN:
+class SchedulerHRRN(SchedulerBase):
     """High Response Ratio Next (HRRN) Scheduler."""
     def schedule(self, ready_queue, current_time, running_processes, available_threads):
         if not ready_queue:
@@ -179,8 +179,10 @@ class SchedulerHRRN:
         # Seleccionar el proceso con mayor Response Ratio
         selected_process = ready_queue.pop(0)
         return selected_process
+    def __str__(self):
+        return "SchedulerHRRN"
 
-class SchedulerPriorityNP:
+class SchedulerPriorityNP(SchedulerBase):
     """Scheduler de Prioridad No Preemptiva (menor número = mayor prioridad)."""
     def schedule(self, ready_queue, current_time, running_processes, available_threads):
         if not ready_queue:
