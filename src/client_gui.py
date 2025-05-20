@@ -463,15 +463,8 @@ class ClientApp:
             command=self.subscribe_event, state=tk.DISABLED,
             style='Action.TButton'
         )
-        self.sub_button.grid(row=1, column=0, padx=5, pady=8, sticky="we")
+        self.sub_button.grid(row=1, column=0, columnspan=2, padx=5, pady=8, sticky="we")
 
-        self.unsub_button = ttk.Button(
-            sub_frame, text="Desuscribir",
-            command=self.unsubscribe_event, state=tk.DISABLED,
-            style='Action.TButton'
-        )
-        self.unsub_button.grid(row=1, column=1, padx=5, pady=8, sticky="we")
-        
         # Mejorar visibilidad del estado de suscripción
         self.subscribed_label = ttk.Label(
             sub_frame, text="Suscrito a: Ninguno", width=30, wraplength=180,
@@ -837,9 +830,6 @@ class ClientApp:
             self.disconnect_button.config(state=tk.DISABLED)
             self.apply_config_button.config(state=tk.DISABLED)
             self.sub_button.config(state=tk.DISABLED)
-            self.unsub_button.config(state=tk.DISABLED)
-            self.start_sim_button.config(state=tk.DISABLED)
-            self.confirm_files_button.config(state=tk.DISABLED)
 
             self.subscribed_events.clear()
             self.update_subscribed_label()
@@ -931,8 +921,6 @@ class ClientApp:
                     text=f"Conectado. Servidor v{version}. Listo para suscribir."
                 )
                 self.sub_button.config(state=tk.NORMAL)
-                self.unsub_button.config(state=tk.NORMAL)
-                self.apply_config_button.config(state=tk.NORMAL)
                 
             elif msg_type == "CONFIG_RESPONSE":
                 # Respuesta a configuración
@@ -958,15 +946,6 @@ class ClientApp:
                             self.status_label.config(text=f"Suscrito exitosamente a '{event}'")
                         else:
                              self.status_label.config(text=f"Suscripción exitosa (evento no especificado).")
-                    elif action == 'unsubscribe':
-                        if event and event in self.subscribed_events:
-                             self.subscribed_events.discard(event)
-                             self.status_label.config(text=f"Desuscrito exitosamente de '{event}'")
-                        elif event: # Try removing even if not tracked, maybe cleared state
-                            self.subscribed_events.discard(event)
-                            self.status_label.config(text=f"Desuscripción de '{event}' confirmada.")
-                        else: # No event specified in UNSUB_RESPONSE
-                             self.status_label.config(text=f"Desuscripción exitosa (evento no especificado).")
                     self.update_subscribed_label() # Always update label on successful response
                 else:
                     messagebox.showwarning(
@@ -1065,16 +1044,6 @@ class ClientApp:
             messagebox.showwarning("Suscripción", "Ingresa un nombre de evento.")
             return
         self.send_message({"type": "SUB", "payload": event})
-
-    def unsubscribe_event(self):
-        event = self.event_name_var.get()
-        if not event:
-            messagebox.showwarning("Suscripción", "Ingresa un nombre de evento.")
-            return
-        if event not in self.subscribed_events:
-            messagebox.showinfo("Suscripción", f"No estás suscrito a '{event}'.")
-            return
-        self.send_message({"type": "UNSUB", "payload": event})
 
     def update_subscribed_label(self):
         """Actualiza la etiqueta que muestra las suscripciones activas."""
