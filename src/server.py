@@ -45,11 +45,60 @@ events: dict[str, set] = {}
 client_configs: dict = {}
 client_queues: dict[str, collections.deque] = {}
 clients: dict = {}
+client_ids: dict = {}  # Mapeo socket -> ID del cliente
+next_client_id = 1  # ID para el próximo cliente que se conecte
 
 processing_lock = threading.Lock()
 client_batch_processing_queue = collections.deque()
 new_batch_event = threading.Event()
 
+# --- Funciones auxiliares para manejo de clientes ---
+def get_client_id(client_socket):
+    """Obtiene el ID de un cliente o devuelve None si no existe."""
+    with state_lock:
+        return client_ids.get(client_socket)
+
+def get_client_events(client_socket):
+    """Obtiene los eventos a los que está suscrito un cliente."""
+    client_events = []
+    try:
+        with state_lock:
+            for event_name, subscribers in events.items():
+                if client_socket in subscribers:
+                    client_events.append(event_name)
+    except Exception as e:
+        print(f"Error obteniendo eventos del cliente: {e}")
+    return client_events
+
+def show_client_subscriptions():
+    """Muestra los clientes conectados y sus suscripciones."""
+    try:
+        client_info = []
+        
+        # Recopilamos toda la información necesaria mientras tenemos el lock
+        with state_lock:
+            if not clients:
+                print("  No hay clientes conectados.")
+                return
+                
+            # Recopilamos la información primero con el lock
+            for sock, addr in clients.items():
+                client_id = client_ids.get(sock, "?")
+                events_for_client = []
+                for event_name, subscribers in events.items():
+                    if sock in subscribers:
+                        events_for_client.append(event_name)
+                client_info.append((client_id, events_for_client))
+        
+        # Ya fuera del lock, procesamos la información
+        for client_id, subscribed_events in client_info:
+            if subscribed_events:
+                events_str = ", ".join(subscribed_events)
+                print(f"  Cliente {client_id} suscrito a: {events_str}")
+            else:
+                print(f"  Cliente {client_id} no está suscrito a ningún evento.")
+    except Exception as e:
+        print(f"  Error al mostrar suscripciones: {e}")
 
 # --- Configuración del Socket del Servidor ---
 server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -107,11 +156,13 @@ def send_to_client(client_socket, message):
 def handle_disconnect(client_socket):
     """Limpia el estado del servidor cuando un cliente se desconecta."""
     addr_disconnected = None
+    client_id_disconnected = None
     processed_disconnect = False # Flag para evitar logs duplicados
 
     with state_lock:
         if client_socket in clients: # Solo procesar si el cliente aún está "registrado"
             addr_disconnected = clients.pop(client_socket, None)
+            client_id_disconnected = client_ids.pop(client_socket, None)
             client_configs.pop(client_socket, None)
             processed_disconnect = True
 
@@ -133,7 +184,7 @@ def handle_disconnect(client_socket):
         # else: El cliente ya fue procesado por otro hilo de desconexión
 
     if processed_disconnect and addr_disconnected:
-        server_log(f"Cliente {addr_disconnected} desconectado o removido.")
+        server_log(f"Cliente {client_id_disconnected} ({addr_disconnected}) desconectado o removido.")
 
     try:
         if client_socket.fileno() != -1:
@@ -285,12 +336,28 @@ def manage_client_batch_processing():
 # --- Hilo Manejador de Cliente ---
 def handle_client(client_socket, addr):
     """Maneja la comunicación con un cliente conectado."""
-    server_log(f"Cliente conectado: {addr}")
-
+    global next_client_id
+    
+    # Asignar ID al cliente
+    client_id = next_client_id
+    next_client_id += 1
+    
     with state_lock:
         clients[client_socket] = addr
+        client_ids[client_socket] = client_id
         if client_socket not in client_configs:
             client_configs[client_socket] = DEFAULT_CLIENT_CONFIG.copy()
+    
+    server_log(f"Cliente {client_id} conectado desde {addr}")
+
+    # Enviar mensaje de bienvenida con ID asignado
+    send_to_client(client_socket, {
+        "type": "WELCOME",
+        "payload": {
+            "server_info": {"version": "1.0"},
+            "client_id": client_id
+        }
+    })
 
     buffer = ""
     try:
@@ -298,14 +365,14 @@ def handle_client(client_socket, addr):
             try:
                 data = client_socket.recv(4096)
             except ConnectionResetError:
-                server_log(f"Conexión reseteada por {addr}.")
+                server_log(f"Conexión reseteada por cliente {client_id} ({addr}).")
                 break
             except Exception as e:
-                server_log(f"Error en recv() para {addr}: {e}")
+                server_log(f"Error en recv() para cliente {client_id} ({addr}): {e}")
                 break
 
             if not data:
-                server_log(f"Cliente {addr} cerró conexión.")
+                server_log(f"Cliente {client_id} ({addr}) cerró conexión.")
                 break
 
             buffer += data.decode('utf-8')
@@ -361,6 +428,9 @@ def handle_client(client_socket, addr):
                                     client_queues[event_name] = collections.deque()
                                 if client_socket not in client_queues[event_name]:
                                     client_queues[event_name].append(client_socket)
+                            
+                            # Mostrar mensaje de suscripción
+                            server_log(f"Cliente {client_id} suscrito a evento '{event_name}'")
                             send_to_client(client_socket,
                                            {"type": "ACK_SUB", "payload": event_name})
                         else:
@@ -379,6 +449,9 @@ def handle_client(client_socket, addr):
                                          if s != client_socket]
                                     )
                                     client_queues[event_name] = new_q
+                            
+                            # Mostrar mensaje de desuscripción
+                            server_log(f"Cliente {client_id} desuscrito de evento '{event_name}'")
                             send_to_client(client_socket,
                                            {"type": "ACK_UNSUB", "payload": event_name})
                         else:
@@ -456,6 +529,7 @@ def print_help():
     print("  remove <nombre_evento>        - Elimina un evento y su cola.")
     print("  trigger <nombre_evento>       - Dispara un evento para los clientes en cola.")
     print("  list                          - Muestra estado de eventos, colas y clientes.")
+    print("  clients                       - Muestra clientes y sus eventos suscritos.")
     print("  status                        - Muestra si el servidor está Ocupado o Idle.")
     print("  exit                          - Cierra el servidor y notifica a los clientes.")
     print("-----------------------------\n")
@@ -503,6 +577,15 @@ def server_commands():
                         print(f"Evento '{event_name}' y su cola eliminados.")
                     else:
                         print(f"Evento '{event_name}' no encontrado.")
+                        
+            elif command == "clients":
+                print("--- Clientes y Sus Suscripciones ---")
+                try:
+                    show_client_subscriptions()
+                except Exception as e:
+                    print(f"  Error al ejecutar comando 'clients': {e}")
+                finally:
+                    print("------------------------------------")
 
             elif command == "list":
                 with state_lock:
@@ -510,20 +593,21 @@ def server_commands():
                     print("\nEventos y Suscriptores:")
                     if not events: print("  (Ninguno)")
                     for ev, subs in events.items():
-                        addrs = [str(clients.get(s, "N/A")) for s in subs]
-                        print(f"- {ev}: {len(subs)} subs -> {addrs}")
+                        client_id_list = [f"Cliente {client_ids.get(s, '?')}" for s in subs]
+                        print(f"- {ev}: {len(subs)} subs -> {client_id_list}")
 
                     print("\nColas de Eventos (Clientes en Espera):")
                     if not client_queues: print("  (Ninguna)")
                     for ev, q in client_queues.items():
-                        q_addrs = [str(clients.get(s, "N/A")) for s in q]
-                        print(f"- {ev}: {len(q)} en cola -> {q_addrs}")
+                        q_client_ids = [f"Cliente {client_ids.get(s, '?')}" for s in q]
+                        print(f"- {ev}: {len(q)} en cola -> {q_client_ids}")
 
                     print("\nClientes Conectados y su Configuración:")
                     if not clients: print("  (Ninguno)")
                     for sock, addr in clients.items():
                         cfg = client_configs.get(sock, "N/A")
-                        print(f"- {addr}: {cfg}")
+                        client_id = client_ids.get(sock, "?")
+                        print(f"- Cliente {client_id} ({addr}): {cfg}")
                     print("-------------------------")
 
             elif command == "status":
