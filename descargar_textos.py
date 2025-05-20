@@ -5,7 +5,7 @@ import requests
 from bs4 import BeautifulSoup
 
 URL_BASE = "https://ubiquitous.udem.edu/~raulms/Suecia/Museum/english_text_files/"
-CARPETA_DESTINO = os.path.join(os.path.dirname(__file__), "..", "text_files")
+CARPETA_DESTINO = os.path.join(os.path.dirname(__file__), "text_files")
 
 def descargar_txts():
     os.makedirs(CARPETA_DESTINO, exist_ok=True)

@@ -947,24 +947,46 @@ class ClientApp:
                     )
                     
             elif msg_type == "SUBSCRIPTION_RESPONSE":
-                # Respuesta a suscripción
+                # Respuesta a suscripción (antiguo formato o detallado)
                 event = payload.get('event')
                 status = payload.get('status')
                 if status == 'success':
-                    if payload.get('action') == 'subscribe':
-                        self.subscribed_events.add(event)
-                    elif payload.get('action') == 'unsubscribe':
-                        self.subscribed_events.discard(event)
-                    self.update_subscribed_label()
-                    self.status_label.config(
-                        text=f"Operación de suscripción exitosa para '{event}'"
-                    )
+                    action = payload.get('action')
+                    if action == 'subscribe':
+                        if event:
+                            self.subscribed_events.add(event)
+                            self.status_label.config(text=f"Suscrito exitosamente a '{event}'")
+                        else:
+                             self.status_label.config(text=f"Suscripción exitosa (evento no especificado).")
+                    elif action == 'unsubscribe':
+                        if event and event in self.subscribed_events:
+                             self.subscribed_events.discard(event)
+                             self.status_label.config(text=f"Desuscrito exitosamente de '{event}'")
+                        elif event: # Try removing even if not tracked, maybe cleared state
+                            self.subscribed_events.discard(event)
+                            self.status_label.config(text=f"Desuscripción de '{event}' confirmada.")
+                        else: # No event specified in UNSUB_RESPONSE
+                             self.status_label.config(text=f"Desuscripción exitosa (evento no especificado).")
+                    self.update_subscribed_label() # Always update label on successful response
                 else:
                     messagebox.showwarning(
-                        "Error Suscripción", 
+                        "Error Suscripción",
                         f"Error con evento '{event}': {payload.get('message', 'Sin detalles')}"
                     )
-                    
+
+            elif msg_type == "ACK_SUB":
+                # Manejar ACK_SUB del servidor (espera payload como string: el nombre del evento)
+                event_name = payload # Asumimos que el payload es directamente el nombre del evento (string)
+                if isinstance(event_name, str) and event_name:
+                    self.subscribed_events.add(event_name)
+                    # Imprimir confirmación en terminal (como se hacía antes con 'desconocido')
+                    print(f"Confirmación de suscripción recibida para evento: {event_name}")
+                    self.status_label.config(text=f"Confirmación suscripción a '{event_name}' recibida.")
+                    self.update_subscribed_label()
+                else:
+                    print(f"ACK_SUB recibido con payload inesperado: {payload}")
+                    self.status_label.config(text="Confirmación suscripción recibida (detalle incompleto).")
+
             elif msg_type == "START_PROCESSING":
                 # Inicio de procesamiento de archivos
                 self.server_assigned_files = payload.get('files', [])
@@ -1055,8 +1077,12 @@ class ClientApp:
         self.send_message({"type": "UNSUB", "payload": event})
 
     def update_subscribed_label(self):
-        text = f"Suscrito a: {', '.join(self.subscribed_events) if self.subscribed_events else 'Ninguno'}"
-        self.subscribed_label.config(text=text)
+        """Actualiza la etiqueta que muestra las suscripciones activas."""
+        if not self.subscribed_events:
+            self.subscribed_label.config(text="Suscrito a: Ninguno")
+        else:
+            events_text = ", ".join(sorted(self.subscribed_events))
+            self.subscribed_label.config(text=f"Suscrito a: {events_text}")
 
     # --- UI Selección Archivos y Parámetros Simulación ---
     def display_file_selection_ui(self):
