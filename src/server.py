@@ -1,5 +1,3 @@
-# src/server.py
-
 import socket
 import threading
 import json
@@ -9,25 +7,27 @@ import concurrent.futures
 import time
 import re
 import math
-import sys # Para sys.stdout.flush()
+import sys  # Para sys.stdout.flush()
 import logging
 from .extractor_regex import parse_file_regex as parse_file
 
 # --- Configuración del Logger ---
-LOG_FILENAME = 'server_processing.log'
+LOG_FILENAME = "server_processing.log"
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
+    format="%(asctime)s - %(levelname)s - %(message)s",
     filename=LOG_FILENAME,
-    filemode='a'  # 'a' para append, 'w' para overwrite en cada inicio
+    filemode="a",  # 'a' para append, 'w' para overwrite en cada inicio
 )
 
 # --- Configuración ---
-HOST = '127.0.0.1'
+HOST = "127.0.0.1"
 PORT = 65432
 import os
 
-TEXT_FILES_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'text_files'))
+TEXT_FILES_DIR = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "text_files")
+)
 print(f"[DEBUG] Buscando en ruta: {TEXT_FILES_DIR}")
 
 # Asegúrate de que la carpeta exista
@@ -42,10 +42,10 @@ else:
     print(f"[DEBUG] Carpeta ya existe.")
 
 # Ahora sí, carga los archivos
-text_files = [f for f in os.listdir(TEXT_FILES_DIR) if f.endswith('.txt')]
+text_files = [f for f in os.listdir(TEXT_FILES_DIR) if f.endswith(".txt")]
 print(f"[DEBUG] Archivos encontrados: {text_files}")
 
-DEFAULT_CLIENT_CONFIG = {'mode': 'threads', 'count': 1}
+DEFAULT_CLIENT_CONFIG = {"mode": "threads", "count": 1}
 
 # --- Estado del Servidor (Protegido por Locks) ---
 state_lock = threading.Lock()
@@ -60,11 +60,13 @@ processing_lock = threading.Lock()
 client_batch_processing_queue = collections.deque()
 new_batch_event = threading.Event()
 
+
 # --- Funciones auxiliares para manejo de clientes ---
 def get_client_id(client_socket):
     """Obtiene el ID de un cliente o devuelve None si no existe."""
     with state_lock:
         return client_ids.get(client_socket)
+
 
 def get_client_events(client_socket):
     """Obtiene los eventos a los que está suscrito un cliente."""
@@ -78,17 +80,18 @@ def get_client_events(client_socket):
         print(f"Error obteniendo eventos del cliente: {e}")
     return client_events
 
+
 def show_client_subscriptions():
     """Muestra los clientes conectados y sus suscripciones."""
     try:
         client_info = []
-        
+
         # Recopilamos toda la información necesaria mientras tenemos el lock
         with state_lock:
             if not clients:
                 print("  No hay clientes conectados.")
                 return
-                
+
             # Recopilamos la información primero con el lock
             for sock, addr in clients.items():
                 client_id = client_ids.get(sock, "?")
@@ -97,7 +100,7 @@ def show_client_subscriptions():
                     if sock in subscribers:
                         events_for_client.append(event_name)
                 client_info.append((client_id, events_for_client))
-        
+
         # Ya fuera del lock, procesamos la información
         for client_id, subscribed_events in client_info:
             if subscribed_events:
@@ -107,6 +110,7 @@ def show_client_subscriptions():
                 print(f"  Cliente {client_id} no está suscrito a ningún evento.")
     except Exception as e:
         print(f"  Error al mostrar suscripciones: {e}")
+
 
 # --- Configuración del Socket del Servidor ---
 server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -127,6 +131,7 @@ if not os.path.isdir(TEXT_FILES_DIR):
 
 # --- Funciones Auxiliares ---
 
+
 def server_log(message):
     """Función centralizada para logs del servidor."""
     print(f"\n{message}")
@@ -134,7 +139,7 @@ def server_log(message):
 
 def send_to_client(client_socket, message):
     """Envía un mensaje codificado en JSON a un cliente específico."""
-    if client_socket.fileno() == -1: # Socket ya cerrado
+    if client_socket.fileno() == -1:  # Socket ya cerrado
         # El log aquí podría ser problemático si handle_disconnect ya fue llamado
         # server_log(f"Intento de envío a socket cerrado")
         # Disparar handle_disconnect si aún no se ha hecho, es seguro
@@ -145,7 +150,7 @@ def send_to_client(client_socket, message):
 
     try:
         payload = json.dumps(message) + "\n"
-        client_socket.sendall(payload.encode('utf-8'))
+        client_socket.sendall(payload.encode("utf-8"))
 
     except (BrokenPipeError, ConnectionResetError):
         # No usar server_log aquí, ya que handle_disconnect lo hará
@@ -165,10 +170,12 @@ def handle_disconnect(client_socket):
     """Limpia el estado del servidor cuando un cliente se desconecta."""
     addr_disconnected = None
     client_id_disconnected = None
-    processed_disconnect = False # Flag para evitar logs duplicados
+    processed_disconnect = False  # Flag para evitar logs duplicados
 
     with state_lock:
-        if client_socket in clients: # Solo procesar si el cliente aún está "registrado"
+        if (
+            client_socket in clients
+        ):  # Solo procesar si el cliente aún está "registrado"
             addr_disconnected = clients.pop(client_socket, None)
             client_id_disconnected = client_ids.pop(client_socket, None)
             client_configs.pop(client_socket, None)
@@ -192,13 +199,15 @@ def handle_disconnect(client_socket):
         # else: El cliente ya fue procesado por otro hilo de desconexión
 
     if processed_disconnect and addr_disconnected:
-        server_log(f"Cliente {client_id_disconnected} ({addr_disconnected}) desconectado o removido.")
+        server_log(
+            f"Cliente {client_id_disconnected} ({addr_disconnected}) desconectado o removido."
+        )
 
     try:
         if client_socket.fileno() != -1:
             client_socket.close()
     except Exception:
-        pass # El socket podría ya estar cerrado, es un error esperado
+        pass  # El socket podría ya estar cerrado, es un error esperado
 
 
 def process_single_file_wrapper(arg_tuple):
@@ -208,10 +217,10 @@ def process_single_file_wrapper(arg_tuple):
     pid_label = ""
     worker_id_str = ""
 
-    if processing_mode == 'threads':
+    if processing_mode == "threads":
         pid_label = "THREAD ID"
         worker_id_str = str(threading.get_ident())
-    elif processing_mode == 'forks':
+    elif processing_mode == "forks":
         pid_label = "FORK PID"
         worker_id_str = str(os.getpid())
     else:
@@ -226,7 +235,9 @@ def process_single_file_wrapper(arg_tuple):
     # --- Fin mensaje de inicio a CONSOLA ---
 
     # Log de inicio al ARCHIVO DE LOG
-    logging.info(f"[{descriptive_worker_id}] Iniciando procesamiento de archivo: {filepath}")
+    logging.info(
+        f"[{descriptive_worker_id}] Iniciando procesamiento de archivo: {filepath}"
+    )
 
     try:
         # Llamar a tu función de extracción Regex
@@ -234,73 +245,85 @@ def process_single_file_wrapper(arg_tuple):
         # Si quieres que esos también vayan al log, necesitarías modificarla
         # para que acepte un logger o use el logger global.
         raw_result_from_extractor = parse_file(filepath, pid=descriptive_worker_id)
-        
+
         # Ejemplo de log de detalles del extractor al ARCHIVO DE LOG
-        logging.info(f"[{descriptive_worker_id}] Datos extraídos de {filename_base}: "
-                     f"Emails: {len(raw_result_from_extractor.get('Emails', []))}, "
-                     f"Fechas: {len(raw_result_from_extractor.get('Fechas', []))}, "
-                     f"Palabras: {raw_result_from_extractor.get('ConteoPalabras', 0)}")
+        logging.info(
+            f"[{descriptive_worker_id}] Datos extraídos de {filename_base}: "
+            f"Emails: {len(raw_result_from_extractor.get('Emails', []))}, "
+            f"Fechas: {len(raw_result_from_extractor.get('Fechas', []))}, "
+            f"Palabras: {raw_result_from_extractor.get('ConteoPalabras', 0)}"
+        )
 
-
-        status_from_extractor = raw_result_from_extractor.get("status",
-                                raw_result_from_extractor.get("estado", "error"))
+        status_from_extractor = raw_result_from_extractor.get(
+            "status", raw_result_from_extractor.get("estado", "error")
+        )
         error_from_extractor = raw_result_from_extractor.get("error", "")
-        
-        final_filename = raw_result_from_extractor.get("filename",
-                           raw_result_from_extractor.get("archivo", filename_base))
+
+        final_filename = raw_result_from_extractor.get(
+            "filename", raw_result_from_extractor.get("archivo", filename_base)
+        )
 
         if status_from_extractor == "success":
             # --- Mensaje de fin a CONSOLA ---
             # print(f"\n[{pid_label}: {worker_id_str}] Finalizado procesamiento de: {final_filename} (Éxito)")
             # sys.stdout.flush()
             # --- Fin mensaje de fin a CONSOLA ---
-            logging.info(f"[{descriptive_worker_id}] Finalizado procesamiento de {final_filename} con ÉXITO.")
+            logging.info(
+                f"[{descriptive_worker_id}] Finalizado procesamiento de {final_filename} con ÉXITO."
+            )
 
             data_for_client = {
                 "emails_found": raw_result_from_extractor.get("Emails", []),
                 "dates_found": raw_result_from_extractor.get("Fechas", []),
-                "word_count": raw_result_from_extractor.get("ConteoPalabras", 0)
+                "word_count": raw_result_from_extractor.get("ConteoPalabras", 0),
             }
-            
+
             final_result_for_server = {
                 "pid_server": descriptive_worker_id,
                 "filename": final_filename,
                 "data": data_for_client,
                 "status": "success",
-                "error": "" 
+                "error": "",
             }
-        else: # Error ocurrió dentro de parse_file
+        else:  # Error ocurrió dentro de parse_file
             # --- Mensaje de fin a CONSOLA (con error del extractor) ---
-            print(f"\n[{pid_label}: {worker_id_str}] Error durante extracción para {final_filename} (ver log).")
+            print(
+                f"\n[{pid_label}: {worker_id_str}] Error durante extracción para {final_filename} (ver log)."
+            )
             sys.stdout.flush()
             # --- Fin mensaje de fin a CONSOLA ---
-            logging.error(f"[{descriptive_worker_id}] Error durante extracción para {final_filename}: {error_from_extractor}")
-            
+            logging.error(
+                f"[{descriptive_worker_id}] Error durante extracción para {final_filename}: {error_from_extractor}"
+            )
+
             final_result_for_server = {
                 "pid_server": descriptive_worker_id,
                 "filename": final_filename,
                 "data": {"emails_found": [], "dates_found": [], "word_count": 0},
                 "status": "error",
-                "error": error_from_extractor
+                "error": error_from_extractor,
             }
         return final_result_for_server
 
     except Exception as e:
         # --- Mensaje de fin a CONSOLA (con error INESPERADO en wrapper) ---
-        print(f"\n[{pid_label}: {worker_id_str}] Error INESPERADO en wrapper para {filename_base} (ver log).")
+        print(
+            f"\n[{pid_label}: {worker_id_str}] Error INESPERADO en wrapper para {filename_base} (ver log)."
+        )
         sys.stdout.flush()
         # --- Fin mensaje de fin a CONSOLA ---
         logging.error(
             f"[{descriptive_worker_id}] Error INESPERADO en wrapper para {filename_base}: {type(e).__name__} - {e}",
-            exc_info=True # Incluye el traceback en el log
+            exc_info=True,  # Incluye el traceback en el log
         )
         return {
             "pid_server": descriptive_worker_id,
             "filename": filename_base,
             "data": {"emails_found": [], "dates_found": [], "word_count": 0},
             "status": "error",
-            "error": f"Error inesperado en wrapper: {str(e)}"
+            "error": f"Error inesperado en wrapper: {str(e)}",
         }
+
 
 def manage_client_batch_processing():
     """
@@ -337,39 +360,42 @@ def manage_client_batch_processing():
             start_time_batch = time.time()
             results = []
             # Para almacenar los PIDs/IDs de los workers que participaron en este lote
-            worker_identifiers_used = set() # Usamos un set para evitar duplicados
+            worker_identifiers_used = set()  # Usamos un set para evitar duplicados
 
             try:
-                send_to_client(client_socket, {
-                    "type": "START_PROCESSING",
-                    "payload": {"event": event_name, "files": assigned_files}
-                })
+                send_to_client(
+                    client_socket,
+                    {
+                        "type": "START_PROCESSING",
+                        "payload": {"event": event_name, "files": assigned_files},
+                    },
+                )
 
-                num_workers = config.get('count', DEFAULT_CLIENT_CONFIG['count'])
-                processing_mode = config.get('mode', DEFAULT_CLIENT_CONFIG['mode'])
+                num_workers = config.get("count", DEFAULT_CLIENT_CONFIG["count"])
+                processing_mode = config.get("mode", DEFAULT_CLIENT_CONFIG["mode"])
                 if num_workers < 1:
                     num_workers = 1
 
-                full_paths = [
-                    os.path.join(TEXT_FILES_DIR, f) for f in assigned_files
-                ]
+                full_paths = [os.path.join(TEXT_FILES_DIR, f) for f in assigned_files]
 
                 executor_cls = None
-                if processing_mode == 'threads':
+                if processing_mode == "threads":
                     executor_cls = concurrent.futures.ThreadPoolExecutor
-                elif processing_mode == 'forks':
+                elif processing_mode == "forks":
                     executor_cls = concurrent.futures.ProcessPoolExecutor
                 else:
                     raise ValueError(f"Modo de proc. inválido: {processing_mode}")
 
                 with executor_cls(max_workers=num_workers) as executor:
                     map_input = [(fp, processing_mode) for fp in full_paths]
-                    
+
                     # executor.map devuelve un iterador. Lo convertimos a lista
                     # para asegurar que todos los trabajos se completen antes de continuar.
                     # Esto también nos permite acceder a los resultados para obtener los PIDs.
-                    map_results_list = list(executor.map(process_single_file_wrapper, map_input))
-                    
+                    map_results_list = list(
+                        executor.map(process_single_file_wrapper, map_input)
+                    )
+
                     results.extend(map_results_list)
 
                     # Recopilar los PIDs/IDs de los workers de los resultados
@@ -377,9 +403,8 @@ def manage_client_batch_processing():
                         if "pid_server" in res_item:
                             worker_identifiers_used.add(res_item["pid_server"])
 
-
                 duration = time.time() - start_time_batch
-                server_log( # ESTA ES LA LÍNEA QUE MENCIONASTE
+                server_log(  # ESTA ES LA LÍNEA QUE MENCIONASTE
                     f"Lote para {client_addr_log} ({event_name}) "
                     f"completado en {duration:.2f}s."
                 )
@@ -392,53 +417,69 @@ def manage_client_batch_processing():
                     print(f"    Workers utilizados para este lote ({processing_mode}):")
                     for worker_id_str in sorted(list(worker_identifiers_used)):
                         print(f"      - {worker_id_str}")
-                    sys.stdout.flush() # Asegurar que se imprima
+                    sys.stdout.flush()  # Asegurar que se imprima
                 # --- FIN DE IMPRIMIR WORKERS ---
 
-
-                send_to_client(client_socket, {
-                    "type": "PROCESSING_COMPLETE",
-                    "payload": {"event": event_name, "status": "success",
-                                "results": results, "duration_seconds": duration}
-                })
+                send_to_client(
+                    client_socket,
+                    {
+                        "type": "PROCESSING_COMPLETE",
+                        "payload": {
+                            "event": event_name,
+                            "status": "success",
+                            "results": results,
+                            "duration_seconds": duration,
+                        },
+                    },
+                )
 
             except Exception as e:
-                server_log(f"Error en procesamiento de lote para {client_addr_log}: {e}")
+                server_log(
+                    f"Error en procesamiento de lote para {client_addr_log}: {e}"
+                )
                 try:
-                    send_to_client(client_socket, {
-                        "type": "PROCESSING_COMPLETE",
-                        "payload": {"event": event_name, "status": "failure",
-                                    "message": str(e), "results": []}
-                    })
+                    send_to_client(
+                        client_socket,
+                        {
+                            "type": "PROCESSING_COMPLETE",
+                            "payload": {
+                                "event": event_name,
+                                "status": "failure",
+                                "message": str(e),
+                                "results": [],
+                            },
+                        },
+                    )
                 except:
                     pass
             # El processing_lock se libera automáticamente
+
 
 # --- Hilo Manejador de Cliente ---
 def handle_client(client_socket, addr):
     """Maneja la comunicación con un cliente conectado."""
     global next_client_id
-    
+
     # Asignar ID al cliente
     client_id = next_client_id
     next_client_id += 1
-    
+
     with state_lock:
         clients[client_socket] = addr
         client_ids[client_socket] = client_id
         if client_socket not in client_configs:
             client_configs[client_socket] = DEFAULT_CLIENT_CONFIG.copy()
-    
+
     server_log(f"Cliente {client_id} conectado desde {addr}")
 
     # Enviar mensaje de bienvenida con ID asignado
-    send_to_client(client_socket, {
-        "type": "WELCOME",
-        "payload": {
-            "server_info": {"version": "1.0"},
-            "client_id": client_id
-        }
-    })
+    send_to_client(
+        client_socket,
+        {
+            "type": "WELCOME",
+            "payload": {"server_info": {"version": "1.0"}, "client_id": client_id},
+        },
+    )
 
     buffer = ""
     try:
@@ -456,10 +497,10 @@ def handle_client(client_socket, addr):
                 server_log(f"Cliente {client_id} ({addr}) cerró conexión.")
                 break
 
-            buffer += data.decode('utf-8')
+            buffer += data.decode("utf-8")
 
-            while '\n' in buffer:
-                message_str, buffer = buffer.split('\n', 1)
+            while "\n" in buffer:
+                message_str, buffer = buffer.split("\n", 1)
                 if not message_str.strip():
                     continue
 
@@ -469,33 +510,53 @@ def handle_client(client_socket, addr):
                     payload = message.get("payload")
 
                     if command == "SET_CONFIG":
-                        if (isinstance(payload, dict) and
-                                'mode' in payload and 'count' in payload):
-                            mode = payload['mode']
-                            count = payload['count']
-                            if (mode in ['threads', 'forks'] and
-                                    isinstance(count, int) and count > 0):
+                        if (
+                            isinstance(payload, dict)
+                            and "mode" in payload
+                            and "count" in payload
+                        ):
+                            mode = payload["mode"]
+                            count = payload["count"]
+                            if (
+                                mode in ["threads", "forks"]
+                                and isinstance(count, int)
+                                and count > 0
+                            ):
                                 with state_lock:
                                     client_configs[client_socket] = {
-                                        'mode': mode, 'count': count
+                                        "mode": mode,
+                                        "count": count,
                                     }
                                 cfg = client_configs[client_socket]
-                                send_to_client(client_socket, {
-                                    "type": "ACK_CONFIG",
-                                    "payload": {"status": "success", "config": cfg}
-                                })
+                                send_to_client(
+                                    client_socket,
+                                    {
+                                        "type": "ACK_CONFIG",
+                                        "payload": {"status": "success", "config": cfg},
+                                    },
+                                )
                             else:
-                                send_to_client(client_socket, {
-                                    "type": "ACK_CONFIG",
-                                    "payload": {"status": "error",
-                                                "message": "Modo/cantidad inválido."}
-                                })
+                                send_to_client(
+                                    client_socket,
+                                    {
+                                        "type": "ACK_CONFIG",
+                                        "payload": {
+                                            "status": "error",
+                                            "message": "Modo/cantidad inválido.",
+                                        },
+                                    },
+                                )
                         else:
-                            send_to_client(client_socket, {
-                                "type": "ACK_CONFIG",
-                                "payload": {"status": "error",
-                                            "message": "Payload SET_CONFIG inválido."}
-                            })
+                            send_to_client(
+                                client_socket,
+                                {
+                                    "type": "ACK_CONFIG",
+                                    "payload": {
+                                        "status": "error",
+                                        "message": "Payload SET_CONFIG inválido.",
+                                    },
+                                },
+                            )
 
                     elif command == "SUB":
                         event_name = payload
@@ -509,14 +570,20 @@ def handle_client(client_socket, addr):
                                     client_queues[event_name] = collections.deque()
                                 if client_socket not in client_queues[event_name]:
                                     client_queues[event_name].append(client_socket)
-                            
+
                             # Mostrar mensaje de suscripción
-                            server_log(f"Cliente {client_id} suscrito a evento '{event_name}'")
-                            send_to_client(client_socket,
-                                           {"type": "ACK_SUB", "payload": event_name})
+                            server_log(
+                                f"Cliente {client_id} suscrito a evento '{event_name}'"
+                            )
+                            send_to_client(
+                                client_socket,
+                                {"type": "ACK_SUB", "payload": event_name},
+                            )
                         else:
-                            send_to_client(client_socket,
-                                           {"type": "ERROR", "payload": "SUB inválido."})
+                            send_to_client(
+                                client_socket,
+                                {"type": "ERROR", "payload": "SUB inválido."},
+                            )
 
                     elif command == "UNSUB":
                         event_name = payload
@@ -526,74 +593,99 @@ def handle_client(client_socket, addr):
                                     events[event_name].discard(client_socket)
                                 if event_name in client_queues:
                                     new_q = collections.deque(
-                                        [s for s in client_queues[event_name]
-                                         if s != client_socket]
+                                        [
+                                            s
+                                            for s in client_queues[event_name]
+                                            if s != client_socket
+                                        ]
                                     )
                                     client_queues[event_name] = new_q
-                            
+
                             # Mostrar mensaje de desuscripción
-                            server_log(f"Cliente {client_id} desuscrito de evento '{event_name}'")
-                            send_to_client(client_socket,
-                                           {"type": "ACK_UNSUB", "payload": event_name})
+                            server_log(
+                                f"Cliente {client_id} desuscrito de evento '{event_name}'"
+                            )
+                            send_to_client(
+                                client_socket,
+                                {"type": "ACK_UNSUB", "payload": event_name},
+                            )
                         else:
-                             send_to_client(client_socket,
-                                            {"type": "ERROR", "payload": "UNSUB inválido."})
+                            send_to_client(
+                                client_socket,
+                                {"type": "ERROR", "payload": "UNSUB inválido."},
+                            )
 
                     elif command == "PROCESS_FILES":
                         event_name = payload.get("event", "sin_evento")
                         files = payload.get("files", [])
 
                         if not files:
-                            send_to_client(client_socket, {
-                                "type": "PROCESSING_COMPLETE",
-                                "payload": {
-                                    "event": event_name,
-                                    "status": "success",
-                                    "message": "No files provided.",
-                                    "results": []
-                                }
-                            })
+                            send_to_client(
+                                client_socket,
+                                {
+                                    "type": "PROCESSING_COMPLETE",
+                                    "payload": {
+                                        "event": event_name,
+                                        "status": "success",
+                                        "message": "No files provided.",
+                                        "results": [],
+                                    },
+                                },
+                            )
                             continue
 
                         try:
                             full_paths = [
-                                os.path.join(TEXT_FILES_DIR, f) for f in files
+                                os.path.join(TEXT_FILES_DIR, f)
+                                for f in files
                                 if os.path.isfile(os.path.join(TEXT_FILES_DIR, f))
                             ]
 
-                            num_workers = client_configs.get(client_socket, {}).get('count', 2)
-                            mode = client_configs.get(client_socket, {}).get('mode', 'threads')
+                            num_workers = client_configs.get(client_socket, {}).get(
+                                "count", 2
+                            )
+                            mode = client_configs.get(client_socket, {}).get(
+                                "mode", "threads"
+                            )
 
                             executor_cls = (
                                 concurrent.futures.ThreadPoolExecutor
-                                if mode == 'threads'
+                                if mode == "threads"
                                 else concurrent.futures.ProcessPoolExecutor
                             )
 
                             with executor_cls(max_workers=num_workers) as executor:
                                 map_input = [(fp,) for fp in full_paths]
-                                map_results = list(executor.map(process_single_file_wrapper, map_input))
+                                map_results = list(
+                                    executor.map(process_single_file_wrapper, map_input)
+                                )
 
-                            send_to_client(client_socket, {
-                                "type": "PROCESSING_COMPLETE",
-                                "payload": {
-                                    "event": event_name,
-                                    "status": "success",
-                                    "results": map_results,
-                                    "duration_seconds": 0
-                                }
-                            })
+                            send_to_client(
+                                client_socket,
+                                {
+                                    "type": "PROCESSING_COMPLETE",
+                                    "payload": {
+                                        "event": event_name,
+                                        "status": "success",
+                                        "results": map_results,
+                                        "duration_seconds": 0,
+                                    },
+                                },
+                            )
 
                         except Exception as e:
-                            send_to_client(client_socket, {
-                                "type": "PROCESSING_COMPLETE",
-                                "payload": {
-                                    "event": event_name,
-                                    "status": "failure",
-                                    "message": str(e),
-                                    "results": []
-                                }
-                            })
+                            send_to_client(
+                                client_socket,
+                                {
+                                    "type": "PROCESSING_COMPLETE",
+                                    "payload": {
+                                        "event": event_name,
+                                        "status": "failure",
+                                        "message": str(e),
+                                        "results": [],
+                                    },
+                                },
+                            )
 
                 except json.JSONDecodeError:
                     server_log(f"JSON inválido de {addr}: '{message_str}'")
@@ -608,17 +700,25 @@ def print_help():
     print("  help                          - Muestra esta ayuda.")
     print("  add <nombre_evento>           - Crea un nuevo evento.")
     print("  remove <nombre_evento>        - Elimina un evento y su cola.")
-    print("  trigger <nombre_evento>       - Dispara un evento para los clientes en cola.")
-    print("  list                          - Muestra estado de eventos, colas y clientes.")
+    print(
+        "  trigger <nombre_evento>       - Dispara un evento para los clientes en cola."
+    )
+    print(
+        "  list                          - Muestra estado de eventos, colas y clientes."
+    )
     print("  clients                       - Muestra clientes y sus eventos suscritos.")
-    print("  status                        - Muestra si el servidor está Ocupado o Idle.")
-    print("  exit                          - Cierra el servidor y notifica a los clientes.")
+    print(
+        "  status                        - Muestra si el servidor está Ocupado o Idle."
+    )
+    print(
+        "  exit                          - Cierra el servidor y notifica a los clientes."
+    )
     print("-----------------------------\n")
 
 
 def server_commands():
     """Maneja comandos ingresados en la terminal del servidor."""
-    print_help() # Mostrar ayuda al inicio
+    print_help()  # Mostrar ayuda al inicio
 
     while True:
         try:
@@ -632,7 +732,7 @@ def server_commands():
             parts = cmd_input.split()
             command = parts[0].lower()
 
-            print() # Línea en blanco después del input para separar la salida
+            print()  # Línea en blanco después del input para separar la salida
 
             if command == "help":
                 print_help()
@@ -653,12 +753,12 @@ def server_commands():
                     if event_name in events:
                         del events[event_name]
                         if event_name in client_queues:
-                            client_queues[event_name].clear() # Vaciarla
+                            client_queues[event_name].clear()  # Vaciarla
                             del client_queues[event_name]
                         print(f"Evento '{event_name}' y su cola eliminados.")
                     else:
                         print(f"Evento '{event_name}' no encontrado.")
-                        
+
             elif command == "clients":
                 print("--- Clientes y Sus Suscripciones ---")
                 try:
@@ -672,19 +772,24 @@ def server_commands():
                 with state_lock:
                     print("--- Estado del Servidor ---")
                     print("\nEventos y Suscriptores:")
-                    if not events: print("  (Ninguno)")
+                    if not events:
+                        print("  (Ninguno)")
                     for ev, subs in events.items():
-                        client_id_list = [f"Cliente {client_ids.get(s, '?')}" for s in subs]
+                        client_id_list = [
+                            f"Cliente {client_ids.get(s, '?')}" for s in subs
+                        ]
                         print(f"- {ev}: {len(subs)} subs -> {client_id_list}")
 
                     print("\nColas de Eventos (Clientes en Espera):")
-                    if not client_queues: print("  (Ninguna)")
+                    if not client_queues:
+                        print("  (Ninguna)")
                     for ev, q in client_queues.items():
                         q_client_ids = [f"Cliente {client_ids.get(s, '?')}" for s in q]
                         print(f"- {ev}: {len(q)} en cola -> {q_client_ids}")
 
                     print("\nClientes Conectados y su Configuración:")
-                    if not clients: print("  (Ninguno)")
+                    if not clients:
+                        print("  (Ninguno)")
                     for sock, addr in clients.items():
                         cfg = client_configs.get(sock, "N/A")
                         client_id = client_ids.get(sock, "?")
@@ -709,19 +814,20 @@ def server_commands():
 
                 active_clients_for_event = []
                 with state_lock:
-                    if (event_name not in client_queues or
-                            not client_queues[event_name]):
+                    if event_name not in client_queues or not client_queues[event_name]:
                         print(f"Sin clientes en espera para '{event_name}'.")
                         continue
 
                     clients_in_q_snapshot = list(client_queues[event_name])
-                    client_queues[event_name].clear() # Clientes serán procesados
+                    client_queues[event_name].clear()  # Clientes serán procesados
 
                     for sock in clients_in_q_snapshot:
                         if sock in clients and sock in client_configs:
                             active_clients_for_event.append(sock)
                         else:
-                            print(f"Cliente {str(clients.get(sock))} de '{event_name}' omitido (desconectado/sin config).")
+                            print(
+                                f"Cliente {str(clients.get(sock))} de '{event_name}' omitido (desconectado/sin config)."
+                            )
 
                 if not active_clients_for_event:
                     print(f"Sin clientes válidos activos para procesar '{event_name}'.")
@@ -729,22 +835,32 @@ def server_commands():
 
                 try:
                     all_files = [
-                        f for f in os.listdir(TEXT_FILES_DIR)
-                        if f.endswith(".txt") and
-                        os.path.isfile(os.path.join(TEXT_FILES_DIR, f))
+                        f
+                        for f in os.listdir(TEXT_FILES_DIR)
+                        if f.endswith(".txt")
+                        and os.path.isfile(os.path.join(TEXT_FILES_DIR, f))
                     ]
                 except Exception as e:
                     print(f"Error listando archivos para '{event_name}': {e}")
                     continue
 
                 if not all_files:
-                    print(f"Sin archivos .txt en '{TEXT_FILES_DIR}' para '{event_name}'.")
+                    print(
+                        f"Sin archivos .txt en '{TEXT_FILES_DIR}' para '{event_name}'."
+                    )
                     for sock in active_clients_for_event:
-                        send_to_client(sock, {
-                            "type": "PROCESSING_COMPLETE",
-                            "payload": {"event": event_name, "status": "success",
-                                        "message": "No files to process.", "results": []}
-                        })
+                        send_to_client(
+                            sock,
+                            {
+                                "type": "PROCESSING_COMPLETE",
+                                "payload": {
+                                    "event": event_name,
+                                    "status": "success",
+                                    "message": "No files to process.",
+                                    "results": [],
+                                },
+                            },
+                        )
                     continue
 
                 num_clients = len(active_clients_for_event)
@@ -762,22 +878,28 @@ def server_commands():
                     assigned_files = all_files[start_idx:end_idx]
                     start_idx = end_idx
 
-                    if not assigned_files: # Si un cliente no obtiene archivos
-                        send_to_client(client_sock, {
-                            "type": "PROCESSING_COMPLETE",
-                            "payload": {"event": event_name, "status": "success",
-                                        "message": "No files assigned for this trigger.",
-                                        "results": []}
-                        })
+                    if not assigned_files:  # Si un cliente no obtiene archivos
+                        send_to_client(
+                            client_sock,
+                            {
+                                "type": "PROCESSING_COMPLETE",
+                                "payload": {
+                                    "event": event_name,
+                                    "status": "success",
+                                    "message": "No files assigned for this trigger.",
+                                    "results": [],
+                                },
+                            },
+                        )
                         continue
 
                     client_cfg = None
-                    with state_lock: # Obtener la última config del cliente
+                    with state_lock:  # Obtener la última config del cliente
                         client_cfg = client_configs.get(client_sock)
 
                     if client_cfg:
                         batch = (client_sock, assigned_files, event_name, client_cfg)
-                        with state_lock: # Proteger la cola de lotes
+                        with state_lock:  # Proteger la cola de lotes
                             client_batch_processing_queue.append(batch)
                         batches_created += 1
                     else:
@@ -786,34 +908,34 @@ def server_commands():
                         )
 
                 if batches_created > 0:
-                    new_batch_event.set() # Notificar al hilo trabajador
+                    new_batch_event.set()  # Notificar al hilo trabajador
                 print(
                     f"{batches_created} lotes para '{event_name}' añadidos a cola de procesamiento."
                 )
 
             elif command == "exit":
                 print("Cerrando servidor...")
-                new_batch_event.set() # Despertar al hilo trabajador
-                time.sleep(0.5) # Dar tiempo a que reaccione
+                new_batch_event.set()  # Despertar al hilo trabajador
+                time.sleep(0.5)  # Dar tiempo a que reaccione
 
                 with state_lock:
                     client_list = list(clients.keys())
 
                 for sock in client_list:
                     send_to_client(sock, {"type": "SERVER_EXIT", "payload": None})
-                    time.sleep(0.1) # Pequeña pausa para envío
+                    time.sleep(0.1)  # Pequeña pausa para envío
                     handle_disconnect(sock)
 
                 server_socket.close()
                 print("Servidor terminado.")
-                os._exit(0) # Salida forzada
+                os._exit(0)  # Salida forzada
 
             else:
                 print("Comando desconocido. Escribe 'help' para ver la lista.")
 
-            print() # Línea en blanco antes del siguiente prompt
+            print()  # Línea en blanco antes del siguiente prompt
 
-        except EOFError: # Ctrl+D
+        except EOFError:  # Ctrl+D
             print("\nCerrando servidor por EOF...")
             new_batch_event.set()
             time.sleep(0.5)
@@ -823,7 +945,7 @@ def server_commands():
                 try:
                     send_to_client(sock, {"type": "SERVER_EXIT", "payload": None})
                 except:
-                    pass # Ignorar errores al notificar cierre
+                    pass  # Ignorar errores al notificar cierre
                 handle_disconnect(sock)
             server_socket.close()
             os._exit(0)
@@ -856,11 +978,11 @@ try:
             break
         except Exception as e:
             print(f"Error inesperado en bucle de aceptación: {e}")
-            time.sleep(1) # Prevenir spinning rápido en errores continuos
+            time.sleep(1)  # Prevenir spinning rápido en errores continuos
 
 except KeyboardInterrupt:
     print("\nCerrando servidor por KeyboardInterrupt...")
-    new_batch_event.set() # Notificar al worker para que pueda salir si está esperando
+    new_batch_event.set()  # Notificar al worker para que pueda salir si está esperando
     time.sleep(0.5)
     with state_lock:
         client_list = list(clients.keys())
@@ -873,10 +995,10 @@ except KeyboardInterrupt:
     server_socket.close()
 
 finally:
-    if server_socket and not getattr(server_socket, '_closed', True):
+    if server_socket and not getattr(server_socket, "_closed", True):
         try:
             server_socket.close()
             print("Socket del servidor cerrado en bloque finally.")
-        except Exception: # e:
+        except Exception:  # e:
             # print(f"Error cerrando socket del servidor en finally: {e}")
             pass
