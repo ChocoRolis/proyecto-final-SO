@@ -32,65 +32,49 @@ class Process:
         self.arrival_time = arrival_time
         self.burst_time = burst_time
 
-        # --- Atributos para la simulación y métricas ---
-        self.remaining_burst_time = (
-            burst_time  # Tiempo de CPU que aún falta por ejecutar.
-        )
-        self.priority = priority  # Prioridad del proceso (si se usa un algoritmo basado en prioridades).
-        self.start_time = (
-            -1
-        )  # Tiempo en que el proceso comienza a ejecutarse por primera vez. -1 si aún no ha empezado.
-        self.completion_time = (
-            -1
-        )  # Tiempo en que el proceso termina su ejecución. -1 si no ha terminado.
-        self.waiting_time = (
-            0  # Tiempo total que el proceso pasa en la cola Ready esperando CPU.
-        )
-        self.turnaround_time = 0  # Tiempo total desde la llegada hasta la finalización (Completion - Arrival).
-        self.state = (
-            "New"  # Estado actual del proceso: New, Ready, Running, Terminated.
-        )
-        self.turnaround_formula = (
-            ""  # Fórmula para calcular el tiempo de turnaround (si se necesita).
-        )
-        self.waiting_formula = (
-            ""  # Fórmula para calcular el tiempo de espera (si se necesita).
-        )
+        self.remaining_burst_time = burst_time
+        self.priority = priority
+        self.start_time = -1
+        self.completion_time = -1
+        self.waiting_time = 0
+        self.turnaround_time = 0
+        self.state = "New"
+        self.turnaround_formula = ""
+        self.waiting_formula = ""
+        self.response_ratio = 0.0 # Para el algoritmo HRRN
 
-        # --- Atributos adicionales (opcionales) ---
-        # self.priority = 0           # Para algoritmos basados en prioridad.
-        # self.io_burst_time = 0      # Si se simulara I/O.
-        # self.memory_required = 0    # Si se simulara gestión de memoria.
 
     def __str__(self):
         """Representación simple en string del proceso."""
         return (
             f"PID: {self.pid}, File: {self.filename}, Arrival: {self.arrival_time}, "
-            f"Burst: {self.burst_time}, Remaining: {self.remaining_burst_time}, State: {self.state}"
+            f"Burst: {self.burst_time}, Remaining: {self.remaining_burst_time}, "
+            f"State: {self.state}"
         )
 
     def __repr__(self):
         """Representación más detallada, útil para debugging."""
         return (
-            f"Process(pid={self.pid}, filename='{self.filename}', arrival_time={self.arrival_time}, "
-            f"burst_time={self.burst_time}, remaining_burst_time={self.remaining_burst_time}, "
+            f"Process(pid={self.pid}, filename='{self.filename}', "
+            f"arrival_time={self.arrival_time}, burst_time={self.burst_time}, "
+            f"remaining_burst_time={self.remaining_burst_time}, "
             f"start_time={self.start_time}, completion_time={self.completion_time}, "
-            f"waiting_time={self.waiting_time}, turnaround_time={self.turnaround_time}, state='{self.state}')"
+            f"waiting_time={self.waiting_time}, "
+            f"turnaround_time={self.turnaround_time}, state='{self.state}', "
+            f"priority={self.priority}, response_ratio={self.response_ratio})"
         )
 
-
-# --- Puedes añadir funciones de utilidad relacionadas con procesos aquí si es necesario ---
-# Ej: def calculate_metrics(process): ... (aunque es más común hacerlo en el bucle principal)
 
 if __name__ == "__main__":
     # Ejemplo de cómo crear y usar la clase Process (para pruebas rápidas)
     p1 = Process(pid=1, filename="doc1.txt", arrival_time=0, burst_time=5)
-    p2 = Process(pid=2, filename="report.txt", arrival_time=2, burst_time=3)
+    p2 = Process(pid=2, filename="report.txt", arrival_time=2, burst_time=3, priority=1)
+    p3 = Process(pid=3, filename="data.txt", arrival_time=1, burst_time=4, priority=0)
 
     print("Proceso 1:", p1)
     print("Proceso 2:", p2)
+    print("Proceso 3:", p3)
     print("Representación detallada P1:", repr(p1))
 
-    # Simulación simple (manual)
     p1.state = "Ready"
-    # ... más lógica de simulación ...
+    print("Proceso 1 (después de cambiar estado):", p1)

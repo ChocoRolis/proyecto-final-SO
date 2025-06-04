@@ -9,8 +9,9 @@ from typing import List, Optional
 
 from .process import Process
 
+
 class SchedulerBase:
-    """Clase base abstracta para los schedulers (opcional)."""
+    """Clase base abstracta para los schedulers."""
 
     def schedule(
         self,
@@ -24,7 +25,7 @@ class SchedulerBase:
 
         Args:
             ready_queue (List[Process]): La lista de procesos en estado Ready.
-                                         IMPORTANTE: Esta lista PUEDE ser modificada por el método
+                                         IMPORTANTE: Esta lista será modificada por el método
                                          (ej. si el scheduler saca el proceso seleccionado).
             current_time (int): El tiempo actual de la simulación.
             running_processes (List[Process]): Lista de procesos actualmente en ejecución.
@@ -41,9 +42,7 @@ class SchedulerBase:
         )
 
     def __str__(self):
-        return (
-            self.__class__.__name__
-        )  # Devuelve el nombre de la clase como representación
+        return self.__class__.__name__
 
 
 # --- Implementaciones Específicas de Algoritmos ---
@@ -61,34 +60,22 @@ class SchedulerFCFS(SchedulerBase):
     ) -> Optional[Process]:
         """
         Selecciona el proceso que llegó primero a la cola Ready.
-
-        Args:
-            ready_queue: Lista de procesos Ready. Se modificará si se selecciona un proceso.
-            current_time: Tiempo actual (no usado directamente por FCFS simple).
-            running_processes: Procesos en ejecución (no usado por FCFS simple).
-            available_threads: Threads libres (implícitamente > 0 si se llama a este método).
-
-        Returns:
-            El proceso con el menor `arrival_time` en la `ready_queue`, o None si está vacía.
+        En caso de empate en arrival_time, el orden de llegada a la cola decide.
         """
         if not ready_queue:
             return None
 
-        # Encuentra el proceso con el menor tiempo de llegada
-        # Si hay empates, se podría desempatar por PID, pero FCFS puro no lo requiere.
-        # Python min() es estable, así que si ya estaban ordenados por llegada, mantendrá el orden relativo.
-        # O podemos ordenar explícitamente para asegurarnos:
         ready_queue.sort(key=lambda p: p.arrival_time)
 
-        # Seleccionar y quitar el primero de la cola
         process_to_run = ready_queue.pop(0)
         return process_to_run
 
 
 class SchedulerSJF(SchedulerBase):
     """
-    Algoritmo de Scheduling Shortest Job First (SJF) - Versión No Preemptiva.
-    (Shortest Remaining Time First - SRTF - sería la versión preemptiva).
+    Algoritmo de Scheduling Shortest Job First (SJF) - No Preemptivo.
+    Selecciona el proceso con el menor burst_time total.
+    En caso de empate, desempata por arrival_time.
     """
 
     def schedule(
@@ -100,15 +87,6 @@ class SchedulerSJF(SchedulerBase):
     ) -> Optional[Process]:
         """
         Selecciona el proceso en la cola Ready con el menor `burst_time` total.
-
-        Args:
-            ready_queue: Lista de procesos Ready. Se modificará si se selecciona un proceso.
-            current_time: Tiempo actual (no usado por SJF No Preemptivo).
-            running_processes: Procesos en ejecución (no usado por SJF No Preemptivo).
-            available_threads: Threads libres.
-
-        Returns:
-            El proceso con el menor `burst_time` en la `ready_queue`, o None si está vacía.
         """
         if not ready_queue:
             return None
@@ -119,7 +97,9 @@ class SchedulerSJF(SchedulerBase):
 
 class SchedulerSRTF(SchedulerBase):
     """
-    Algoritmo de Scheduling Shortest Remaining Time First (SRTF) - Versión Preemptiva de SJF.
+    Algoritmo de Scheduling Shortest Remaining Time First (SRTF) - Preemptivo.
+    Selecciona el proceso con el menor tiempo de ráfaga restante (remaining_burst_time).
+    En caso de empate, desempata por arrival_time.
     """
 
     def schedule(
@@ -130,22 +110,11 @@ class SchedulerSRTF(SchedulerBase):
         available_threads: int,
     ) -> Optional[Process]:
         """
-        Selecciona el proceso en la cola Ready con el menor tiempo de ráfaga restante (remaining_burst_time).
-        Si hay empate, desempata por arrival_time.
-
-        Args:
-            ready_queue: Lista de procesos Ready. Se modificará si se selecciona un proceso.
-            current_time: Tiempo actual.
-            running_processes: Procesos en ejecución.
-            available_threads: Threads libres.
-
-        Returns:
-            El proceso con el menor remaining_burst_time en la ready_queue, o None si está vacía.
+        Selecciona el proceso en la cola Ready con el menor `remaining_burst_time`.
         """
         if not ready_queue:
             return None
 
-        # Ordena por remaining_burst_time y luego por arrival_time para desempatar
         ready_queue.sort(key=lambda p: (p.remaining_burst_time, p.arrival_time))
         return ready_queue.pop(0)
 
@@ -153,7 +122,7 @@ class SchedulerSRTF(SchedulerBase):
 class SchedulerRR(SchedulerBase):
     """
     Algoritmo de Scheduling Round Robin (RR).
-    Requiere un Quantum (timeslice).
+    Requiere un Quantum (timeslice) para la preempción por tiempo.
     """
 
     def __init__(self, quantum: int = 2):
@@ -166,9 +135,6 @@ class SchedulerRR(SchedulerBase):
         if quantum <= 0:
             raise ValueError("Quantum debe ser un entero positivo.")
         self.quantum = quantum
-        # Nota: El manejo del temporizador del quantum y mover procesos de Running
-        # de vuelta a Ready generalmente se hace en el bucle principal de la simulación,
-        # no dentro del método schedule directamente.
 
     def schedule(
         self,
@@ -179,17 +145,6 @@ class SchedulerRR(SchedulerBase):
     ) -> Optional[Process]:
         """
         Selecciona el siguiente proceso de la cola Ready (tratada como FIFO).
-
-        Args:
-            ready_queue: Lista de procesos Ready. Se asume que los procesos que
-                         expiraron su quantum o llegaron nuevos se añaden al final.
-                         Se modificará si se selecciona un proceso.
-            current_time: Tiempo actual.
-            running_processes: Procesos en ejecución.
-            available_threads: Threads libres.
-
-        Returns:
-            El primer proceso en la `ready_queue`, o None si está vacía.
         """
         if not ready_queue:
             return None
@@ -201,22 +156,36 @@ class SchedulerRR(SchedulerBase):
 
 
 class SchedulerHRRN(SchedulerBase):
-    """High Response Ratio Next (HRRN) Scheduler."""
+    """
+    High Response Ratio Next (HRRN) Scheduler.
+    Selecciona el proceso con el mayor Response Ratio.
+    Response Ratio = (Tiempo de Espera + Burst Time) / Burst Time.
+    """
 
-    def schedule(self, ready_queue, current_time, running_processes, available_threads):
+    def schedule(
+        self,
+        ready_queue: List[Process],
+        current_time: int,
+        running_processes: List[Process],
+        available_threads: int,
+    ) -> Optional[Process]:
+        """
+        Calcula el Response Ratio para cada proceso en la cola Ready
+        y selecciona el proceso con el mayor ratio.
+        """
         if not ready_queue:
             return None
 
-        # Calcular el Response Ratio para cada proceso en la cola de listos
         for process in ready_queue:
             wait_time = current_time - process.arrival_time
-            response_ratio = (wait_time + process.burst_time) / process.burst_time
-            process.response_ratio = response_ratio
+            # Evitar división por cero si burst_time es 0 (aunque debería ser >0)
+            if process.burst_time == 0:
+                process.response_ratio = float('inf')
+            else:
+                process.response_ratio = (wait_time + process.burst_time) / process.burst_time
 
-        # Ordenar por mayor Response Ratio
         ready_queue.sort(key=lambda p: p.response_ratio, reverse=True)
 
-        # Seleccionar el proceso con mayor Response Ratio
         selected_process = ready_queue.pop(0)
         return selected_process
 
@@ -225,12 +194,25 @@ class SchedulerHRRN(SchedulerBase):
 
 
 class SchedulerPriorityNP(SchedulerBase):
-    """Scheduler de Prioridad No Preemptiva (menor número = mayor prioridad)."""
+    """
+    Scheduler de Prioridad No Preemptiva.
+    Selecciona el proceso con la mayor prioridad (menor número = mayor prioridad).
+    En caso de empate en prioridad, desempata por arrival_time.
+    """
 
-    def schedule(self, ready_queue, current_time, running_processes, available_threads):
+    def schedule(
+        self,
+        ready_queue: List[Process],
+        current_time: int,
+        running_processes: List[Process],
+        available_threads: int,
+    ) -> Optional[Process]:
+        """
+        Selecciona el proceso de mayor prioridad de la cola Ready.
+        """
         if not ready_queue:
             return None
-        # Selecciona el de mayor prioridad (menor número), desempata por llegada
+
         ready_queue.sort(key=lambda p: (p.priority, p.arrival_time))
         return ready_queue.pop(0)
 
@@ -243,8 +225,8 @@ AVAILABLE_SCHEDULERS = {
     "RR": SchedulerRR,
     "HRRN": SchedulerHRRN,
     "Priority_NP": SchedulerPriorityNP,
-    # Añade aquí otros algoritmos que implementes
 }
+
 
 if __name__ == "__main__":
     # Ejemplo de cómo usar las clases de Scheduler (para pruebas rápidas)
@@ -252,38 +234,71 @@ if __name__ == "__main__":
     p2 = Process(pid=2, filename="report.txt", arrival_time=2, burst_time=3)
     p3 = Process(pid=3, filename="data.txt", arrival_time=1, burst_time=4)
 
-    ready_processes = [p1, p3, p2]  # Llegan en orden 0, 1, 2
+    ready_processes = [p1, p3, p2]
 
     print("--- Probando FCFS ---")
     fcfs_scheduler = SchedulerFCFS()
     print(f"Usando: {fcfs_scheduler}")
-    ready_copy_fcfs = list(ready_processes)  # Trabajar con una copia
+    ready_copy_fcfs = list(ready_processes)
     next_proc = fcfs_scheduler.schedule(ready_copy_fcfs, 0, [], 1)
-    print(f"FCFS seleccionó: {next_proc}")  # Debería ser P1 (arrival 0)
+    print(f"FCFS seleccionó: {next_proc}")
     next_proc = fcfs_scheduler.schedule(ready_copy_fcfs, 1, [], 1)
-    print(f"FCFS seleccionó: {next_proc}")  # Debería ser P3 (arrival 1)
+    print(f"FCFS seleccionó: {next_proc}")
     next_proc = fcfs_scheduler.schedule(ready_copy_fcfs, 2, [], 1)
-    print(f"FCFS seleccionó: {next_proc}")  # Debería ser P2 (arrival 2)
+    print(f"FCFS seleccionó: {next_proc}")
     print(f"Cola restante: {ready_copy_fcfs}")
 
-    print("\n--- Probando SJF (Placeholder) ---")
+    print("\n--- Probando SJF ---")
     sjf_scheduler = SchedulerSJF()
     print(f"Usando: {sjf_scheduler}")
     ready_copy_sjf = list(ready_processes)
     next_proc = sjf_scheduler.schedule(ready_copy_sjf, 0, [], 1)
-    print(
-        f"SJF (placeholder) seleccionó: {next_proc}"
-    )  # Placeholder devuelve el primero
-    # Cuando esté implementado, debería seleccionar P2 (burst 3)
+    print(f"SJF seleccionó: {next_proc}")
     print(f"Cola restante: {ready_copy_sjf}")
 
-    print("\n--- Probando RR (Placeholder) ---")
+    print("\n--- Probando SRTF ---")
+    srtf_scheduler = SchedulerSRTF()
+    print(f"Usando: {srtf_scheduler}")
+    p4 = Process(pid=4, filename="fast.txt", arrival_time=0, burst_time=2)
+    p5 = Process(pid=5, filename="slow.txt", arrival_time=0, burst_time=10)
+    ready_copy_srtf = [p4, p5]
+    next_proc = srtf_scheduler.schedule(ready_copy_srtf, 0, [], 1)
+    print(f"SRTF seleccionó: {next_proc}")
+    print(f"Cola restante: {ready_copy_srtf}")
+
+    print("\n--- Probando RR ---")
     rr_scheduler = SchedulerRR(quantum=2)
     print(f"Usando: {rr_scheduler}")
     ready_copy_rr = list(ready_processes)
     next_proc = rr_scheduler.schedule(ready_copy_rr, 0, [], 1)
-    print(
-        f"RR (placeholder) seleccionó: {next_proc}"
-    )  # Placeholder devuelve el primero (P1)
-    # La lógica de RR real toma el primero de la cola
+    print(f"RR seleccionó: {next_proc}")
     print(f"Cola restante: {ready_copy_rr}")
+
+    print("\n--- Probando HRRN ---")
+    hrrn_scheduler = SchedulerHRRN()
+    print(f"Usando: {hrrn_scheduler}")
+    p_hrrn1 = Process(pid=10, filename="A.txt", arrival_time=0, burst_time=5)
+    p_hrrn2 = Process(pid=11, filename="B.txt", arrival_time=2, burst_time=3)
+    p_hrrn3 = Process(pid=12, filename="C.txt", arrival_time=1, burst_time=8)
+    ready_copy_hrrn = [p_hrrn1, p_hrrn2, p_hrrn3]
+    # Simular en tiempo 2 para HRRN
+    next_proc = hrrn_scheduler.schedule(ready_copy_hrrn, 2, [], 1)
+    print(f"HRRN (t=2) seleccionó: {next_proc}")
+    print(f"Cola restante: {ready_copy_hrrn}")
+
+    print("\n--- Probando Priority_NP ---")
+    priority_scheduler = SchedulerPriorityNP()
+    print(f"Usando: {priority_scheduler}")
+    p_prio1 = Process(pid=20, filename="HighPrio.txt", arrival_time=0, burst_time=5, priority=1)
+    p_prio2 = Process(pid=21, filename="LowPrio.txt", arrival_time=0, burst_time=3, priority=2)
+    p_prio3 = Process(pid=22, filename="MedPrio.txt", arrival_time=1, burst_time=8, priority=1) # Misma prioridad que P1
+    ready_copy_prio = [p_prio1, p_prio2, p_prio3]
+    ready_copy_prio.sort(key=lambda p: p.arrival_time) # Asegurar orden de llegada inicial
+    
+    next_proc = priority_scheduler.schedule(ready_copy_prio, 0, [], 1)
+    print(f"Priority_NP seleccionó: {next_proc}") # Debería ser P20 (Prio 1, Arr 0)
+    print(f"Cola restante: {ready_copy_prio}")
+
+    next_proc = priority_scheduler.schedule(ready_copy_prio, 1, [], 1)
+    print(f"Priority_NP seleccionó: {next_proc}") # Debería ser P22 (Prio 1, Arr 1)
+    print(f"Cola restante: {ready_copy_prio}")

@@ -5,11 +5,10 @@ import os
 import collections
 import concurrent.futures
 import time
-import re
-import math
-import sys  # Para sys.stdout.flush()
+import sys
 import logging
 from .extractor_regex import parse_file_regex as parse_file
+
 
 # --- Configuración del Logger ---
 LOG_FILENAME = "server_processing.log"
@@ -17,35 +16,34 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
     filename=LOG_FILENAME,
-    filemode="a",  # 'a' para append, 'w' para overwrite en cada inicio
+    filemode="a",
 )
 
-# --- Configuración ---
+
+# --- Configuración General del Servidor ---
 HOST = "127.0.0.1"
 PORT = 65432
-import os
 
 TEXT_FILES_DIR = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "text_files")
 )
 print(f"[DEBUG] Buscando en ruta: {TEXT_FILES_DIR}")
 
-# Asegúrate de que la carpeta exista
 if not os.path.isdir(TEXT_FILES_DIR):
     try:
         os.makedirs(TEXT_FILES_DIR)
         print(f"[DEBUG] Carpeta '{TEXT_FILES_DIR}' creada.")
     except Exception as e:
         print(f"[ERROR] No se pudo crear la carpeta '{TEXT_FILES_DIR}': {e}")
-        exit(1)
+        sys.exit(1)
 else:
     print(f"[DEBUG] Carpeta ya existe.")
 
-# Ahora sí, carga los archivos
 text_files = [f for f in os.listdir(TEXT_FILES_DIR) if f.endswith(".txt")]
 print(f"[DEBUG] Archivos encontrados: {text_files}")
 
 DEFAULT_CLIENT_CONFIG = {"mode": "threads", "count": 1}
+
 
 # --- Estado del Servidor (Protegido por Locks) ---
 state_lock = threading.Lock()
@@ -53,15 +51,24 @@ events: dict[str, set] = {}
 client_configs: dict = {}
 client_queues: dict[str, collections.deque] = {}
 clients: dict = {}
-client_ids: dict = {}  # Mapeo socket -> ID del cliente
-next_client_id = 1  # ID para el próximo cliente que se conecte
+client_ids: dict = {}
+next_client_id = 1
 
 processing_lock = threading.Lock()
 client_batch_processing_queue = collections.deque()
 new_batch_event = threading.Event()
 
 
+# --- Configuración del Socket del Servidor ---
+server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+server_socket.bind((HOST, PORT))
+server_socket.listen()
+print(f"Servidor escuchando en {HOST}:{PORT}")
+
+
 # --- Funciones auxiliares para manejo de clientes ---
+
 def get_client_id(client_socket):
     """Obtiene el ID de un cliente o devuelve None si no existe."""
     with state_lock:
@@ -86,13 +93,11 @@ def show_client_subscriptions():
     try:
         client_info = []
 
-        # Recopilamos toda la información necesaria mientras tenemos el lock
         with state_lock:
             if not clients:
                 print("  No hay clientes conectados.")
                 return
 
-            # Recopilamos la información primero con el lock
             for sock, addr in clients.items():
                 client_id = client_ids.get(sock, "?")
                 events_for_client = []
@@ -101,7 +106,6 @@ def show_client_subscriptions():
                         events_for_client.append(event_name)
                 client_info.append((client_id, events_for_client))
 
-        # Ya fuera del lock, procesamos la información
         for client_id, subscribed_events in client_info:
             if subscribed_events:
                 events_str = ", ".join(subscribed_events)
@@ -112,25 +116,7 @@ def show_client_subscriptions():
         print(f"  Error al mostrar suscripciones: {e}")
 
 
-# --- Configuración del Socket del Servidor ---
-server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-server_socket.bind((HOST, PORT))
-server_socket.listen()
-print(f"Servidor escuchando en {HOST}:{PORT}")
-print(f"Buscando archivos de texto en: ./{TEXT_FILES_DIR}/")
-
-if not os.path.isdir(TEXT_FILES_DIR):
-    try:
-        os.makedirs(TEXT_FILES_DIR)
-        print(f"Directorio '{TEXT_FILES_DIR}' creado.")
-    except OSError as e:
-        print(f"Error: No se pudo crear el directorio '{TEXT_FILES_DIR}': {e}")
-        # sys.exit(1) # Considerar salir si es esencial
-
-
-# --- Funciones Auxiliares ---
-
+# --- Funciones Auxiliares Generales ---
 
 def server_log(message):
     """Función centralizada para logs del servidor."""
@@ -139,10 +125,7 @@ def server_log(message):
 
 def send_to_client(client_socket, message):
     """Envía un mensaje codificado en JSON a un cliente específico."""
-    if client_socket.fileno() == -1:  # Socket ya cerrado
-        # El log aquí podría ser problemático si handle_disconnect ya fue llamado
-        # server_log(f"Intento de envío a socket cerrado")
-        # Disparar handle_disconnect si aún no se ha hecho, es seguro
+    if client_socket.fileno() == -1:
         threading.Thread(
             target=handle_disconnect, args=(client_socket,), daemon=True
         ).start()
@@ -153,8 +136,6 @@ def send_to_client(client_socket, message):
         client_socket.sendall(payload.encode("utf-8"))
 
     except (BrokenPipeError, ConnectionResetError):
-        # No usar server_log aquí, ya que handle_disconnect lo hará
-        # server_log(f"Error al enviar. Cliente parece desconectado.")
         threading.Thread(
             target=handle_disconnect, args=(client_socket,), daemon=True
         ).start()
@@ -170,12 +151,10 @@ def handle_disconnect(client_socket):
     """Limpia el estado del servidor cuando un cliente se desconecta."""
     addr_disconnected = None
     client_id_disconnected = None
-    processed_disconnect = False  # Flag para evitar logs duplicados
+    processed_disconnect = False
 
     with state_lock:
-        if (
-            client_socket in clients
-        ):  # Solo procesar si el cliente aún está "registrado"
+        if client_socket in clients:
             addr_disconnected = clients.pop(client_socket, None)
             client_id_disconnected = client_ids.pop(client_socket, None)
             client_configs.pop(client_socket, None)
@@ -194,23 +173,28 @@ def handle_disconnect(client_socket):
                         )
                         client_queues[event_name] = new_queue
                     except Exception as e:
-                        # Evitar log dentro de log si esto viene de send_to_client
                         print(f"\nError removiendo de cola '{event_name}': {e}")
-        # else: El cliente ya fue procesado por otro hilo de desconexión
 
     if processed_disconnect and addr_disconnected:
         server_log(
-            f"Cliente {client_id_disconnected} ({addr_disconnected}) desconectado o removido."
+            f"Cliente {client_id_disconnected} ({addr_disconnected}) "
+            "desconectado o removido."
         )
 
     try:
         if client_socket.fileno() != -1:
             client_socket.close()
     except Exception:
-        pass  # El socket podría ya estar cerrado, es un error esperado
+        pass
 
+
+# --- Funciones de Procesamiento de Archivos ---
 
 def process_single_file_wrapper(arg_tuple):
+    """
+    Wrapper para procesar un solo archivo, adaptado para ThreadPool y ProcessPool.
+    Muestra el PID del worker (hilo o proceso) al inicio y al final.
+    """
     filepath, processing_mode = arg_tuple
     filename_base = os.path.basename(filepath)
 
@@ -229,28 +213,21 @@ def process_single_file_wrapper(arg_tuple):
 
     descriptive_worker_id = f"{pid_label}_{worker_id_str}"
 
-    # --- Mensaje de inicio a CONSOLA ---
-    # print(f"\n[{pid_label}: {worker_id_str}] Iniciando procesamiento de: {filename_base}")
+    print(f"\n[{pid_label}: {worker_id_str}] Iniciando procesamiento de: {filename_base}")
     sys.stdout.flush()
-    # --- Fin mensaje de inicio a CONSOLA ---
 
-    # Log de inicio al ARCHIVO DE LOG
     logging.info(
         f"[{descriptive_worker_id}] Iniciando procesamiento de archivo: {filepath}"
     )
 
     try:
-        # Llamar a tu función de extracción Regex
-        # Tu función parse_file podría tener sus propios prints.
-        # Si quieres que esos también vayan al log, necesitarías modificarla
-        # para que acepte un logger o use el logger global.
         raw_result_from_extractor = parse_file(filepath, pid=descriptive_worker_id)
 
-        # Ejemplo de log de detalles del extractor al ARCHIVO DE LOG
         logging.info(
             f"[{descriptive_worker_id}] Datos extraídos de {filename_base}: "
-            f"Emails: {len(raw_result_from_extractor.get('Emails', []))}, "
+            f"Nombres: {len(raw_result_from_extractor.get('Nombres', []))}, "
             f"Fechas: {len(raw_result_from_extractor.get('Fechas', []))}, "
+            f"Lugares: {len(raw_result_from_extractor.get('Lugares', []))}, "
             f"Palabras: {raw_result_from_extractor.get('ConteoPalabras', 0)}"
         )
 
@@ -264,17 +241,21 @@ def process_single_file_wrapper(arg_tuple):
         )
 
         if status_from_extractor == "success":
-            # --- Mensaje de fin a CONSOLA ---
-            # print(f"\n[{pid_label}: {worker_id_str}] Finalizado procesamiento de: {final_filename} (Éxito)")
-            # sys.stdout.flush()
-            # --- Fin mensaje de fin a CONSOLA ---
+            print(
+                f"\n[{pid_label}: {worker_id_str}] Finalizado procesamiento de: "
+                f"{final_filename} (Éxito)"
+            )
+            sys.stdout.flush()
+
             logging.info(
-                f"[{descriptive_worker_id}] Finalizado procesamiento de {final_filename} con ÉXITO."
+                f"[{descriptive_worker_id}] Finalizado procesamiento de "
+                f"{final_filename} con ÉXITO."
             )
 
             data_for_client = {
-                "emails_found": raw_result_from_extractor.get("Emails", []),
-                "dates_found": raw_result_from_extractor.get("Fechas", []),
+                "nombres_encontrados": raw_result_from_extractor.get("Nombres", []),
+                "fechas_encontradas": raw_result_from_extractor.get("Fechas", []),
+                "lugares_encontrados": raw_result_from_extractor.get("Lugares", []),
                 "word_count": raw_result_from_extractor.get("ConteoPalabras", 0),
             }
 
@@ -285,42 +266,54 @@ def process_single_file_wrapper(arg_tuple):
                 "status": "success",
                 "error": "",
             }
-        else:  # Error ocurrió dentro de parse_file
-            # --- Mensaje de fin a CONSOLA (con error del extractor) ---
+        else:
             print(
-                f"\n[{pid_label}: {worker_id_str}] Error durante extracción para {final_filename} (ver log)."
+                f"\n[{pid_label}: {worker_id_str}] Error durante extracción para "
+                f"{final_filename} (ver log)."
             )
             sys.stdout.flush()
-            # --- Fin mensaje de fin a CONSOLA ---
+
             logging.error(
-                f"[{descriptive_worker_id}] Error durante extracción para {final_filename}: {error_from_extractor}"
+                f"[{descriptive_worker_id}] Error durante extracción para "
+                f"{final_filename}: {error_from_extractor}"
             )
 
             final_result_for_server = {
                 "pid_server": descriptive_worker_id,
                 "filename": final_filename,
-                "data": {"emails_found": [], "dates_found": [], "word_count": 0},
+                "data": {
+                    "nombres_encontrados": [],
+                    "fechas_encontradas": [],
+                    "lugares_encontrados": [],
+                    "word_count": 0,
+                },
                 "status": "error",
                 "error": error_from_extractor,
             }
         return final_result_for_server
 
     except Exception as e:
-        # --- Mensaje de fin a CONSOLA (con error INESPERADO en wrapper) ---
         print(
-            f"\n[{pid_label}: {worker_id_str}] Error INESPERADO en wrapper para {filename_base} (ver log)."
+            f"\n[{pid_label}: {worker_id_str}] Error INESPERADO en wrapper para "
+            f"{filename_base} (ver log)."
         )
         sys.stdout.flush()
-        # --- Fin mensaje de fin a CONSOLA ---
+
         logging.error(
-            f"[{descriptive_worker_id}] Error INESPERADO en wrapper para {filename_base}: {type(e).__name__} - {e}",
-            exc_info=True,  # Incluye el traceback en el log
+            f"[{descriptive_worker_id}] Error INESPERADO en wrapper para "
+            f"{filename_base}: {type(e).__name__} - {e}",
+            exc_info=True,
         )
 
         return {
             "pid_server": descriptive_worker_id,
             "filename": filename_base,
-            "data": {"emails_found": [], "dates_found": [], "word_count": 0},
+            "data": {
+                "nombres_encontrados": [],
+                "fechas_encontradas": [],
+                "lugares_encontrados": [],
+                "word_count": 0,
+            },
             "status": "error",
             "error": f"Error inesperado en wrapper: {str(e)}",
         }
@@ -352,7 +345,8 @@ def manage_client_batch_processing():
                 is_client_valid = True
             else:
                 server_log(
-                    f"Cliente para lote de '{event_name}' ya no conectado. Lote descartado."
+                    f"Cliente para lote de '{event_name}' ya no conectado. "
+                    "Lote descartado."
                 )
 
         if not is_client_valid or not assigned_files:
@@ -361,8 +355,7 @@ def manage_client_batch_processing():
         with processing_lock:
             start_time_batch = time.time()
             results = []
-            # Para almacenar los PIDs/IDs de los workers que participaron en este lote
-            worker_identifiers_used = set()  # Usamos un set para evitar duplicados
+            worker_identifiers_used = set()
 
             try:
                 send_to_client(
@@ -390,37 +383,26 @@ def manage_client_batch_processing():
 
                 with executor_cls(max_workers=num_workers) as executor:
                     map_input = [(fp, processing_mode) for fp in full_paths]
-
-                    # executor.map devuelve un iterador. Lo convertimos a lista
-                    # para asegurar que todos los trabajos se completen antes de continuar.
-                    # Esto también nos permite acceder a los resultados para obtener los PIDs.
                     map_results_list = list(
                         executor.map(process_single_file_wrapper, map_input)
                     )
-
                     results.extend(map_results_list)
 
-                    # Recopilar los PIDs/IDs de los workers de los resultados
                     for res_item in map_results_list:
                         if "pid_server" in res_item:
                             worker_identifiers_used.add(res_item["pid_server"])
 
                 duration = time.time() - start_time_batch
-                server_log(  # ESTA ES LA LÍNEA QUE MENCIONASTE
+                server_log(
                     f"Lote para {client_addr_log} ({event_name}) "
                     f"completado en {duration:.2f}s."
                 )
 
-                # --- IMPRIMIR LOS WORKERS UTILIZADOS ---
                 if worker_identifiers_used:
-                    # El log ya imprime una nueva línea antes.
-                    # Ajustamos el mensaje para que sea más legible.
-                    # server_log(f"    Workers utilizados para este lote: {sorted(list(worker_identifiers_used))}")
                     print(f"    Workers utilizados para este lote ({processing_mode}):")
                     for worker_id_str in sorted(list(worker_identifiers_used)):
                         print(f"      - {worker_id_str}")
-                    sys.stdout.flush()  # Asegurar que se imprima
-                # --- FIN DE IMPRIMIR WORKERS ---
+                    sys.stdout.flush()
 
                 send_to_client(
                     client_socket,
@@ -454,7 +436,6 @@ def manage_client_batch_processing():
                     )
                 except:
                     pass
-            # El processing_lock se libera automáticamente
 
 
 # --- Hilo Manejador de Cliente ---
@@ -462,7 +443,6 @@ def handle_client(client_socket, addr):
     """Maneja la comunicación con un cliente conectado."""
     global next_client_id
 
-    # Asignar ID al cliente
     client_id = next_client_id
     next_client_id += 1
 
@@ -474,7 +454,6 @@ def handle_client(client_socket, addr):
 
     server_log(f"Cliente {client_id} conectado desde {addr}")
 
-    # Enviar mensaje de bienvenida con ID asignado
     send_to_client(
         client_socket,
         {
@@ -573,7 +552,6 @@ def handle_client(client_socket, addr):
                                 if client_socket not in client_queues[event_name]:
                                     client_queues[event_name].append(client_socket)
 
-                            # Mostrar mensaje de suscripción
                             server_log(
                                 f"Cliente {client_id} suscrito a evento '{event_name}'"
                             )
@@ -603,7 +581,6 @@ def handle_client(client_socket, addr):
                                     )
                                     client_queues[event_name] = new_q
 
-                            # Mostrar mensaje de desuscripción
                             server_log(
                                 f"Cliente {client_id} desuscrito de evento '{event_name}'"
                             )
@@ -657,7 +634,7 @@ def handle_client(client_socket, addr):
                             )
 
                             with executor_cls(max_workers=num_workers) as executor:
-                                map_input = [(fp,) for fp in full_paths]
+                                map_input = [(fp, mode) for fp in full_paths]
                                 map_results = list(
                                     executor.map(process_single_file_wrapper, map_input)
                                 )
@@ -697,7 +674,10 @@ def handle_client(client_socket, addr):
         handle_disconnect(client_socket)
 
 
+# --- Comandos del Servidor ---
+
 def print_help():
+    """Muestra la ayuda de comandos del servidor."""
     print("\n--- Comandos del Servidor ---")
     print("  help                          - Muestra esta ayuda.")
     print("  add <nombre_evento>           - Crea un nuevo evento.")
@@ -720,12 +700,10 @@ def print_help():
 
 def server_commands():
     """Maneja comandos ingresados en la terminal del servidor."""
-    print_help()  # Mostrar ayuda al inicio
+    print_help()
 
     while True:
         try:
-            # El prompt se imprime por input(). Si un log interfiere,
-            # el usuario presiona Enter para "ver" el prompt de nuevo.
             cmd_input = input("Server> ").strip()
 
             if not cmd_input:
@@ -734,7 +712,7 @@ def server_commands():
             parts = cmd_input.split()
             command = parts[0].lower()
 
-            print()  # Línea en blanco después del input para separar la salida
+            print()
 
             if command == "help":
                 print_help()
@@ -755,7 +733,7 @@ def server_commands():
                     if event_name in events:
                         del events[event_name]
                         if event_name in client_queues:
-                            client_queues[event_name].clear()  # Vaciarla
+                            client_queues[event_name].clear()
                             del client_queues[event_name]
                         print(f"Evento '{event_name}' y su cola eliminados.")
                     else:
@@ -821,14 +799,15 @@ def server_commands():
                         continue
 
                     clients_in_q_snapshot = list(client_queues[event_name])
-                    client_queues[event_name].clear()  # Clientes serán procesados
+                    client_queues[event_name].clear()
 
                     for sock in clients_in_q_snapshot:
                         if sock in clients and sock in client_configs:
                             active_clients_for_event.append(sock)
                         else:
                             print(
-                                f"Cliente {str(clients.get(sock))} de '{event_name}' omitido (desconectado/sin config)."
+                                f"Cliente {str(clients.get(sock))} de '{event_name}' "
+                                "omitido (desconectado/sin config)."
                             )
 
                 if not active_clients_for_event:
@@ -871,7 +850,6 @@ def server_commands():
                 batches_created = 0
 
                 for i, client_sock in enumerate(active_clients_for_event):
-                    # Distribuir archivos
                     files_this_client = total_files // num_clients
                     if i < (total_files % num_clients):
                         files_this_client += 1
@@ -880,7 +858,7 @@ def server_commands():
                     assigned_files = all_files[start_idx:end_idx]
                     start_idx = end_idx
 
-                    if not assigned_files:  # Si un cliente no obtiene archivos
+                    if not assigned_files:
                         send_to_client(
                             client_sock,
                             {
@@ -896,48 +874,50 @@ def server_commands():
                         continue
 
                     client_cfg = None
-                    with state_lock:  # Obtener la última config del cliente
+                    with state_lock:
                         client_cfg = client_configs.get(client_sock)
 
                     if client_cfg:
                         batch = (client_sock, assigned_files, event_name, client_cfg)
-                        with state_lock:  # Proteger la cola de lotes
+                        with state_lock:
                             client_batch_processing_queue.append(batch)
                         batches_created += 1
                     else:
                         print(
-                            f"Cliente {clients.get(client_sock)} ya no tiene config. Lote descartado."
+                            f"Cliente {clients.get(client_sock)} ya no tiene config. "
+                            "Lote descartado."
                         )
 
                 if batches_created > 0:
-                    new_batch_event.set()  # Notificar al hilo trabajador
+                    new_batch_event.set()
                 print(
-                    f"{batches_created} lotes para '{event_name}' añadidos a cola de procesamiento."
+                    f"{batches_created} lotes para '{event_name}' añadidos "
+                    "a cola de procesamiento."
                 )
 
             elif command == "exit":
                 print("Cerrando servidor...")
-                new_batch_event.set()  # Despertar al hilo trabajador
-                time.sleep(0.5)  # Dar tiempo a que reaccione
+                new_batch_event.set()
+                time.sleep(0.5)
 
                 with state_lock:
                     client_list = list(clients.keys())
 
                 for sock in client_list:
                     send_to_client(sock, {"type": "SERVER_EXIT", "payload": None})
-                    time.sleep(0.1)  # Pequeña pausa para envío
+                    time.sleep(0.1)
                     handle_disconnect(sock)
 
                 server_socket.close()
                 print("Servidor terminado.")
-                os._exit(0)  # Salida forzada
+                os._exit(0)
 
             else:
                 print("Comando desconocido. Escribe 'help' para ver la lista.")
 
-            print()  # Línea en blanco antes del siguiente prompt
+            print()
 
-        except EOFError:  # Ctrl+D
+        except EOFError:
             print("\nCerrando servidor por EOF...")
             new_batch_event.set()
             time.sleep(0.5)
@@ -947,7 +927,7 @@ def server_commands():
                 try:
                     send_to_client(sock, {"type": "SERVER_EXIT", "payload": None})
                 except:
-                    pass  # Ignorar errores al notificar cierre
+                    pass
                 handle_disconnect(sock)
             server_socket.close()
             os._exit(0)
@@ -956,51 +936,57 @@ def server_commands():
             print(f"Error en bucle de comandos del servidor: {e}")
 
 
-# --- Iniciar Hilos del Servidor ---
-command_thread = threading.Thread(target=server_commands, daemon=True)
-command_thread.start()
+# --- Bucle Principal del Servidor ---
 
-batch_worker_thread = threading.Thread(
-    target=manage_client_batch_processing, daemon=True
-)
-batch_worker_thread.start()
+def main_server_loop():
+    """Bucle principal para aceptar conexiones de clientes."""
+    try:
+        while True:
+            try:
+                client_sock, client_addr = server_socket.accept()
+                client_handler_thread = threading.Thread(
+                    target=handle_client, args=(client_sock, client_addr), daemon=True
+                )
+                client_handler_thread.start()
+            except OSError as e:
+                print(f"Error aceptando conexión (puede ser normal al cerrar): {e}")
+                break
+            except Exception as e:
+                print(f"Error inesperado en bucle de aceptación: {e}")
+                time.sleep(1)
 
-# --- Bucle Principal para Aceptar Clientes ---
-try:
-    while True:
-        try:
-            client_sock, client_addr = server_socket.accept()
-            client_handler_thread = threading.Thread(
-                target=handle_client, args=(client_sock, client_addr), daemon=True
-            )
-            client_handler_thread.start()
-        except OSError as e:
-            # Esto puede ocurrir si el socket se cierra mientras accept() está bloqueado
-            print(f"Error aceptando conexión (puede ser normal al cerrar): {e}")
-            break
-        except Exception as e:
-            print(f"Error inesperado en bucle de aceptación: {e}")
-            time.sleep(1)  # Prevenir spinning rápido en errores continuos
+    except KeyboardInterrupt:
+        print("\nCerrando servidor por KeyboardInterrupt...")
+        new_batch_event.set()
+        time.sleep(0.5)
+        with state_lock:
+            client_list = list(clients.keys())
+        for sock in client_list:
+            try:
+                send_to_client(sock, {"type": "SERVER_EXIT", "payload": None})
+            except:
+                pass
+            handle_disconnect(sock)
+        server_socket.close()
 
-except KeyboardInterrupt:
-    print("\nCerrando servidor por KeyboardInterrupt...")
-    new_batch_event.set()  # Notificar al worker para que pueda salir si está esperando
-    time.sleep(0.5)
-    with state_lock:
-        client_list = list(clients.keys())
-    for sock in client_list:
-        try:
-            send_to_client(sock, {"type": "SERVER_EXIT", "payload": None})
-        except:
-            pass
-        handle_disconnect(sock)
-    server_socket.close()
+    finally:
+        if server_socket and not getattr(server_socket, "_closed", True):
+            try:
+                server_socket.close()
+                print("Socket del servidor cerrado en bloque finally.")
+            except Exception:
+                pass
 
-finally:
-    if server_socket and not getattr(server_socket, "_closed", True):
-        try:
-            server_socket.close()
-            print("Socket del servidor cerrado en bloque finally.")
-        except Exception:  # e:
-            # print(f"Error cerrando socket del servidor en finally: {e}")
-            pass
+
+if __name__ == "__main__":
+    # Iniciar hilos de fondo
+    command_thread = threading.Thread(target=server_commands, daemon=True)
+    command_thread.start()
+
+    batch_worker_thread = threading.Thread(
+        target=manage_client_batch_processing, daemon=True
+    )
+    batch_worker_thread.start()
+
+    # Iniciar el bucle principal de aceptación de clientes
+    main_server_loop()
