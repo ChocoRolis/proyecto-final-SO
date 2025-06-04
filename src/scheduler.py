@@ -1,5 +1,3 @@
-# src/scheduler.py
-
 """
 Implementa diferentes algoritmos de scheduling (planificación) de procesos.
 
@@ -9,11 +7,8 @@ deberían ejecutarse a continuación, basándose en sus propias reglas.
 
 from typing import List, Optional
 
-# Asumiendo que process.py está en el mismo directorio (src/)
 from .process import Process
 
-
-# --- Clase Base (Opcional pero útil para definir interfaz) ---
 class SchedulerBase:
     """Clase base abstracta para los schedulers (opcional)."""
 

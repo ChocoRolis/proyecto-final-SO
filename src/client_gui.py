@@ -1,5 +1,3 @@
-# src/client_gui.py
-
 import tkinter as tk
 from tkinter import ttk, scrolledtext, filedialog, messagebox, simpledialog
 import socket
@@ -8,6 +6,7 @@ import json
 import queue
 import time
 import os
+import sys
 
 from .process import Process
 from .scheduler import (
@@ -2142,20 +2141,6 @@ class ClientApp:
 
 
 if __name__ == "__main__":
-    # Verificaciones simples de que los módulos existen
-    if not all([SchedulerFCFS, SchedulerRR, SchedulerSJF]):
-        print(
-            "Error: Clases de Scheduler no encontradas. "
-            "Asegúrate que scheduler.py existe y es correcto."
-        )
-        sys.exit(1)  # Usar sys.exit para salir limpiamente
-    if not Process:
-        print(
-            "Error: Clase Process no encontrada. "
-            "Asegúrate que process.py existe y es correcto."
-        )
-        sys.exit(1)
-
     app_root = tk.Tk()
     app = ClientApp(app_root)
     app_root.protocol("WM_DELETE_WINDOW", app.on_closing)

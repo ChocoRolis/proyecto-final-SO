@@ -316,6 +316,7 @@ def process_single_file_wrapper(arg_tuple):
             f"[{descriptive_worker_id}] Error INESPERADO en wrapper para {filename_base}: {type(e).__name__} - {e}",
             exc_info=True,  # Incluye el traceback en el log
         )
+
         return {
             "pid_server": descriptive_worker_id,
             "filename": filename_base,
@@ -344,6 +345,7 @@ def manage_client_batch_processing():
                 continue
 
         client_addr_log, is_client_valid = "Dirección Desconocida", False
+
         with state_lock:
             if client_socket in clients:
                 client_addr_log = str(clients[client_socket])
@@ -373,8 +375,8 @@ def manage_client_batch_processing():
 
                 num_workers = config.get("count", DEFAULT_CLIENT_CONFIG["count"])
                 processing_mode = config.get("mode", DEFAULT_CLIENT_CONFIG["mode"])
-                if num_workers < 1:
-                    num_workers = 1
+
+                num_workers = max(num_workers, 1)
 
                 full_paths = [os.path.join(TEXT_FILES_DIR, f) for f in assigned_files]
 

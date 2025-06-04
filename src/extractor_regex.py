@@ -68,13 +68,6 @@ def parse_file_regex(filepath: str, pid: str) -> Dict:
     palabras = re.findall(r"\b\w+\b", content)
     num_palabras = len(palabras)
 
-    # --- Debug ---
-    # print(f"[DEBUG] Procesado: {filepath}")
-    # print(f"[DEBUG] Nombres: {nombres}")
-    # print(f"[DEBUG] Fechas: {fechas}")
-    # print(f"[DEBUG] Lugares: {lugares}")
-    # print(f"[DEBUG] Palabras: {num_palabras}")
-
     return {
         "Nombres": sorted(set(nombres)) if nombres else [],
         "Fechas": sorted(set(fechas)) if fechas else [],

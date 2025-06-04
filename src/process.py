@@ -1,11 +1,7 @@
-# src/process.py
-
-
 """
 Define la estructura de datos para representar un proceso o tarea
 dentro de la simulación de scheduling.
 """
-
 
 class Process:
     """
