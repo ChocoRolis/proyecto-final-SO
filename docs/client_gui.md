@@ -1,307 +1,314 @@
 # Documentación Detallada del Cliente (`src/client_gui.py`)
 
-Este documento describe el funcionamiento interno del script `client_gui.py`. La aplicación cliente proporciona una Interfaz Gráfica de Usuario (GUI) para interactuar con el servidor, configurar parámetros, y lo más importante, **simular y visualizar algoritmos de scheduling** basados en la información y los archivos que el servidor le asigna.
+El script `client_gui.py` implementa la aplicación cliente con Interfaz Gráfica de Usuario (GUI) para interactuar con el servidor. Es el punto de control y visualización para el usuario.
 
-## Orden General de Ejecución y Componentes
+## Propósito General
 
-1.  **Inicio y Configuración Inicial:** Al ejecutar `python -m src.client_gui`, el script:
-    *   Importa librerías (Tkinter, socket, threading, json, queue, etc.) y los módulos locales `process.py` y `scheduler.py`.
-    *   Define la clase principal `ClientApp`.
+El cliente tiene múltiples roles:
+
+1.  **Interfaz de Usuario (GUI):** Proporcionar una ventana visual e interactiva para que el usuario configure, controle y observe el sistema.
+2.  **Comunicación con el Servidor:** Conectarse al servidor, enviar configuraciones y solicitudes (suscripciones, desuscripciones) y recibir notificaciones y resultados del procesamiento real.
+3.  **Simulación de Scheduling:** Ejecutar una simulación visual de cómo se distribuiría el trabajo (archivos) entre workers (hilos/procesos simulados) bajo diferentes algoritmos de planificación.
+4.  **Visualización de Simulación:** Mostrar el estado de los procesos simulados (tabla de procesos, diagrama de Gantt) y calcular métricas de rendimiento (tiempos promedio).
+5.  **Visualización de Resultados Reales:** Mostrar los resultados del procesamiento de archivos realizado por el servidor y permitir guardarlos en un archivo CSV.
+
+## Flujo General de Ejecución del Cliente
+
+Cuando ejecutas `python -m src.client_gui`, el programa sigue este flujo:
+
+1.  **Inicio y Configuración Inicial:**
+    *   Se importan todas las librerías necesarias (Tkinter, socket, threading, JSON, etc.) y los módulos locales `process.py` y `scheduler.py`.
+    *   Se define la clase principal `ClientApp`.
     *   En el bloque `if __name__ == "__main__":`:
-        *   Crea la ventana principal de Tkinter (`tk.Tk()`).
-        *   Crea una instancia de `ClientApp`.
-        *   Configura el manejador para el evento de cierre de ventana (`on_closing`).
-        *   Inicia el bucle principal de eventos de Tkinter (`root.mainloop()`).
+        *   Se crea la ventana principal de Tkinter (`tk.Tk()`).
+        *   Se crea una instancia de `ClientApp`, que inicializa todas las variables de estado y construye la GUI.
+        *   Se configura el manejador para el evento de cierre de ventana (`on_closing`).
+        *   Se inicia el bucle principal de eventos de Tkinter (`root.mainloop()`). Este bucle es el corazón de la GUI, procesando eventos de usuario y actualizaciones de la interfaz.
+
 2.  **Constructor `ClientApp.__init__(self, root)`:**
-    *   Inicializa todas las variables de estado del cliente (conexión, suscripciones, configuración de workers, listas para la simulación, etc.).
-    *   Crea una `queue.Queue` (`self.message_queue`) para la comunicación segura entre el hilo de red y el hilo principal de la GUI.
-    *   Llama a `self._create_widgets()` para construir todos los elementos de la interfaz.
-    *   Llama a `self._setup_output_dir()` para crear el directorio `output/`.
-    *   Programa la primera llamada a `self.check_message_queue()` usando `root.after()`, iniciando un sondeo periódico de la cola de mensajes.
-3.  **Construcción de la GUI (`_create_widgets`)**: Se crean todos los frames, botones, labels, entries, comboboxes, treeviews y scrolledtexts que componen la interfaz. Los widgets se organizan en secciones lógicas.
-4.  **Interacción del Usuario y Flujo de Eventos:**
-    *   El usuario interactúa con la GUI (ej. clic en "Conectar", "Suscribir", "Aplicar Config.", selecciona archivos, ingresa parámetros, inicia simulación).
-    *   Estas acciones llaman a métodos específicos dentro de `ClientApp`.
-    *   Los mensajes del servidor son recibidos por un hilo de red, puestos en `message_queue`, y procesados por `handle_server_message` en el hilo principal de la GUI.
+    *   Este método se ejecuta una vez al inicio del programa.
+    *   Guarda la referencia a la ventana raíz (`self.root`).
+    *   Configura el tema visual de la GUI (`self.setup_theme()`).
+    *   Asegura la existencia del directorio `output/` (`self._setup_output_dir()`).
+    *   Inicializa **todas las variables de estado** de la aplicación:
+        *   Variables de conexión y comunicación (sockets, estado conectado, direcciones, colas de mensajes).
+        *   Variables para la configuración del cliente (modo y cantidad de workers para el servidor).
+        *   Variables para la gestión de archivos (asignados por el servidor, seleccionados para simulación, parámetros manuales).
+        *   Variables para la simulación visual (colas de procesos simulados, scheduler, tiempo de simulación, contadores, datos para Gantt).
+        *   Variables para la gestión de resultados CSV.
+    *   Crea `self.message_queue = queue.Queue()`: Esta cola es **fundamental** para la comunicación segura entre los hilos de fondo (como el hilo que escucha al servidor) y el hilo principal de la GUI.
+    *   Llama a `self._create_widgets()` para construir toda la interfaz gráfica.
+    *   Programa la primera llamada a `self.check_message_queue()` usando `self.root.after(100, self.check_message_queue)`. Esto establece un bucle periódico para procesar mensajes de la cola sin bloquear la GUI.
+
+3.  **Construcción de la GUI (`_create_widgets`)**:
+    *   Este método organiza y crea todos los elementos visuales (widgets) de la aplicación.
+    *   Utiliza `ttk.Frame` y `ttk.LabelFrame` para agrupar lógicamente los widgets en secciones.
+    *   **Sección Superior:** Contiene los controles de conexión al servidor, la configuración de workers del cliente (para enviar al servidor) y la suscripción/desuscripción a eventos.
+    *   **Sección Media:** Dedicada a la simulación. Incluye:
+        *   Un área para mostrar los archivos asignados por el servidor con `ttk.Checkbutton` para que el usuario seleccione cuáles simular. Esta área tiene un `tk.Canvas` con `ttk.Scrollbar` para manejar muchas entradas.
+        *   Un área para la entrada manual de parámetros de simulación (Arrival Time, Burst Time, Prioridad) para los archivos seleccionados. También usa un `tk.Canvas` con `ttk.Scrollbar`.
+        *   Controles para la configuración de la simulación visual (selección de algoritmo, quantum para RR, botón de inicio/pausa).
+    *   **Sección Inferior:** Contiene un `ttk.Notebook` (pestañas) para las visualizaciones:
+        *   **Tabla de Procesos:** Un `ttk.Treeview` para mostrar el estado y las métricas de los procesos simulados.
+        *   **Diagrama de Gantt:** Un `tk.Canvas` con scrollbars para la visualización gráfica de la simulación.
+        *   **Resultados del Servidor:** Un `ttk.Treeview` para mostrar los resultados del procesamiento real de archivos recibido del servidor, con un botón para guardar a CSV.
+    *   **Barra de Estado:** Un `ttk.Label` en la parte inferior para mensajes informativos.
+    *   Configura el tema visual aplicando estilos a los widgets.
 
 ---
 
-## Funciones y Métodos Clave (agrupados por funcionalidad)
+## Funciones y Métodos Clave del Cliente
 
-### A. Inicialización y GUI
+### A. Configuración y Estilo de la GUI
 
-#### 1. `ClientApp.__init__(self, root)`
+#### 1. `setup_theme(self)`
 
-*   **Propósito:** Constructor de la clase principal de la aplicación cliente.
-*   **Funcionamiento:**
-    *   Guarda la referencia a la ventana raíz `root`.
-    *   Establece el título y tamaño de la ventana.
-    *   Inicializa numerosas variables de instancia (`tk.StringVar`, `tk.IntVar`, listas, diccionarios, flags booleanos) para almacenar:
-        *   Estado de la conexión al servidor (`self.client_socket`, `self.connected`, `self.server_addr`, `self.server_port`).
-        *   Información de suscripción a eventos (`self.event_name_var`, `self.subscribed_events`).
-        *   Configuración que el cliente enviará al servidor (`self.processing_mode_var`, `self.worker_count_var`).
-        *   Datos para la simulación visual (`self.server_assigned_files`, `self.files_for_simulation_vars`, `self.process_params_entries`, `self.processes_to_simulate`, colas de simulación, `self.scheduler_sim`, etc.).
-        *   Datos para el archivo CSV final (`self.output_csv_path`, `self.csv_headers`, `self.server_results_for_csv`).
-    *   Crea `self.message_queue = queue.Queue()` para la comunicación segura entre el hilo de red y el hilo GUI.
-    *   Llama a `self._create_widgets()` para construir la interfaz.
-    *   Llama a `self._setup_output_dir()`.
-    *   Inicia el sondeo de `self.message_queue` con `self.root.after(100, self.check_message_queue)`.
-*   **Concepto:** Inicialización de un objeto, gestión de estado, configuración básica de Tkinter.
+*   **Propósito:** Aplicar un tema visual moderno y consistente a toda la GUI.
+*   **Funcionamiento:** Utiliza `ttk.Style()` para configurar colores, fuentes, padding y bordes para diferentes tipos de widgets (botones, entradas, labels, frames, treeviews, etc.). Define una paleta de colores personalizada y aplica estos estilos a través de `style.configure()` y `style.map()`.
 
 #### 2. `_setup_output_dir(self)`
 
-*   **Propósito:** Asegurar que el directorio `output/` exista.
-*   **Funcionamiento:** Usa `os.makedirs("output", exist_ok=True)` que crea el directorio si no existe y no da error si ya existe.
-
-#### 3. `_create_widgets(self)`
-
-*   **Propósito:** Construir y organizar todos los elementos visuales (widgets) de la GUI.
-*   **Funcionamiento:**
-    *   Crea `ttk.Frame` y `ttk.LabelFrame` para agrupar lógicamente los widgets.
-    *   **Sección Superior:** Contiene frames para "Conexión Servidor", "Config. Cliente (p/ Servidor)", y "Suscripción Eventos".
-        *   Widgets: `ttk.Entry` para IP/Puerto/Evento, `ttk.Button` para Conectar/Desconectar/Suscribir/Desuscribir/Aplicar Config, `ttk.Radiobutton` para modo Threads/Forks, `ttk.Spinbox` para cantidad de workers, `ttk.Label` para mostrar estado.
-    *   **Sección Media:** Contiene frames para "Archivos Asignados (Seleccionar para Simulación)", "Parámetros de Simulación (Entrada Manual)", y "Config. Simulación Visual".
-        *   **Selección de Archivos:** Usa un `tk.Canvas` con `ttk.Scrollbar` (`self.files_canvas`, `self.scrollable_files_frame`) para mostrar una lista de `ttk.Checkbutton` (uno por archivo asignado por el servidor). Un `ttk.Button` ("Definir Parámetros") confirma la selección.
-        *   **Parámetros de Simulación:** Similarmente, usa un `tk.Canvas` con `ttk.Scrollbar` (`self.params_canvas`, `self.scrollable_params_frame`) para mostrar `ttk.Entry` donde el usuario ingresará Arrival Time, Burst Time (y Prioridad si aplica) para cada archivo seleccionado.
-        *   **Config. Simulación Visual:** `ttk.Combobox` para el algoritmo de scheduling, `ttk.Spinbox` para el quantum (si es RR), y `ttk.Button` ("Iniciar Sim. Visual").
-    *   **Sección Inferior:** Contiene un `ttk.Notebook` con pestañas para la "Tabla Procesos (Sim.)" y "Gantt (Sim.)". Al lado, un frame para "Métricas Promedio (Simulación)" y "Resultados del Servidor (para CSV)".
-        *   Widgets: `ttk.Treeview` para la tabla de procesos simulados, `scrolledtext.ScrolledText` para el Gantt simulado y para mostrar los resultados del servidor, `ttk.Label` para métricas, `ttk.Button` para guardar CSV.
-    *   **Barra de Estado:** Un `ttk.Label` en la parte inferior para mensajes generales.
-    *   Llama a `self.change_scheduler_sim()` al final para configurar la visibilidad inicial de campos como el quantum.
-*   **Concepto:** Diseño de GUI con Tkinter, uso de diferentes widgets, layout managers (pack, grid).
+*   **Propósito:** Asegurar que el directorio `output/` exista en el sistema de archivos local.
+*   **Funcionamiento:** Usa `os.makedirs("output", exist_ok=True)` para crear el directorio si no existe, sin generar un error si ya está presente.
 
 ### B. Conexión y Comunicación con el Servidor
 
-#### 4. `connect_server(self)`
+#### 3. `connect_server(self)`
 
-*   **Propósito:** Establecer la conexión con el servidor.
+*   **Propósito:** Establecer la conexión TCP con el servidor.
 *   **Funcionamiento:**
-    1.  Obtiene la IP y el puerto de los `tk.StringVar`.
-    2.  Crea un `socket.socket(socket.AF_INET, socket.SOCK_STREAM)`.
-    3.  Intenta conectar con `self.client_socket.connect((ip, port))`.
-    4.  Si tiene éxito:
-        *   Actualiza `self.connected = True` y la barra de estado.
-        *   Habilita/deshabilita botones correspondientes (Desconectar, Aplicar Config, Suscribir).
-        *   Crea e inicia `self.receive_thread` (que ejecuta `self.listen_to_server()`).
-        *   Llama a `self.send_client_config()` para enviar la configuración inicial del cliente al servidor.
-    5.  Maneja `ValueError` (puerto inválido) y `socket.error` (fallo de conexión).
-*   **Concepto:** Establecimiento de conexión TCP cliente.
+    1.  Obtiene la IP y el puerto de los campos de entrada.
+    2.  Crea un `socket.socket()` y llama a `self.client_socket.connect()`.
+    3.  Si la conexión es exitosa, actualiza el estado de la GUI (barra de estado, botones).
+    4.  Crea y lanza `self.receive_thread`, que ejecutará `self.listen_to_server()` en un hilo separado.
+    5.  Envía la configuración inicial del cliente al servidor llamando a `self.send_client_config()`.
+    6.  Maneja errores de valor (puerto inválido) y errores de conexión de socket.
 
-#### 5. `disconnect_server(self)`
+#### 4. `disconnect_server(self)`
 
-*   **Propósito:** Cerrar la conexión con el servidor y resetear el estado del cliente.
+*   **Propósito:** Cerrar la conexión actual con el servidor y resetear la interfaz de usuario a su estado inicial.
 *   **Funcionamiento:**
-    1.  Intenta cerrar `self.client_socket` si existe.
-    2.  Resetea `self.client_socket = None`, `self.connected = False`, `self.simulation_running_sim = False`.
-    3.  Actualiza la barra de estado y el estado de los botones.
-    4.  Limpia `self.subscribed_events`, la UI de selección de archivos y la UI de parámetros.
-*   **Concepto:** Cierre de conexión, reseteo de estado de la aplicación.
+    1.  Cierra `self.client_socket`.
+    2.  Actualiza el estado `self.connected = False`.
+    3.  Resetea todas las variables de estado relevantes (simulación, suscripciones, UI de archivos/parámetros).
+    4.  Actualiza los botones y etiquetas de la GUI.
 
-#### 6. `send_message(self, message: dict)`
+#### 5. `send_message(self, message: dict)`
 
-*   **Propósito:** Función centralizada para enviar mensajes JSON al servidor.
-*   **Funcionamiento:** Similar a `send_to_client` del servidor: convierte `message` a JSON, añade `\n`, codifica a `utf-8` y envía. Maneja errores de envío, llamando a `self.disconnect_server()` si la conexión se pierde.
-
-#### 7. `listen_to_server(self)` (Ejecutada en `self.receive_thread`)
-
-*   **Propósito:** Hilo dedicado a escuchar continuamente mensajes del servidor.
+*   **Propósito:** Enviar un mensaje estructurado (diccionario Python) al servidor.
 *   **Funcionamiento:**
-    1.  Bucle `while self.connected and self.client_socket`.
-    2.  Llama a `self.client_socket.recv(4096)` (bloqueante).
-    3.  Si no hay datos, el servidor cerró la conexión. Se pone un mensaje de error en `self.message_queue`.
-    4.  Decodifica los datos y los añade a un `buffer`.
-    5.  Procesa el `buffer` buscando `\n` para separar mensajes JSON.
-    6.  Por cada mensaje JSON parseado, lo pone en `self.message_queue` usando `self.message_queue.put(message)`.
-    7.  Maneja errores de red y de parsing.
-    8.  Si el bucle termina y el cliente aún se consideraba conectado, pone un mensaje `_THREAD_EXIT_` en la cola.
-*   **Concepto:** Recepción de datos en hilos, buffering, parsing, comunicación inter-hilos segura mediante colas.
-    *   **Recurso sobre `queue.Queue`:** [Real Python - An Intro to Threading in Python](https://realpython.com/intro-to-python-threading/#using-a-queue-with-threads)
+    1.  Convierte el diccionario `message` a una cadena JSON (`json.dumps()`).
+    2.  Añade un carácter de nueva línea (`\n`) al final de la cadena JSON como delimitador.
+    3.  Codifica la cadena JSON a bytes (`utf-8`).
+    4.  Envía los bytes a través del socket usando `self.client_socket.sendall()`.
+    5.  Maneja errores de red (`BrokenPipeError`, `ConnectionResetError`), llamando a `self.disconnect_server()` si la conexión se pierde.
 
-#### 8. `check_message_queue(self)` (Ejecutada periódicamente en el hilo GUI)
+#### 6. `listen_to_server(self)` (Ejecutada en `self.receive_thread`)
 
-*   **Propósito:** Sacar mensajes de `self.message_queue` y procesarlos en el hilo principal de la GUI.
+*   **Propósito:** Escuchar continuamente mensajes entrantes del servidor en un hilo de fondo.
 *   **Funcionamiento:**
-    1.  Bucle `while True` para procesar todos los mensajes actualmente en la cola.
-    2.  Usa `self.message_queue.get_nowait()` para obtener un mensaje sin bloquear.
-    3.  Si hay un mensaje, llama a `self.handle_server_message(message)`.
-    4.  Si la cola está vacía (`queue.Empty`), sale del bucle `while`.
-    5.  En el bloque `finally`, se reprograma a sí misma con `self.root.after(100, self.check_message_queue)`.
-*   **Concepto:** Patrón de sondeo de cola no bloqueante, ejecución de lógica de UI en el hilo principal.
+    1.  Se ejecuta en un bucle `while True` dentro de `self.receive_thread`.
+    2.  Llama a `self.client_socket.recv(4096)` para recibir datos. Esta llamada es **bloqueante**; el hilo espera aquí hasta que llegan datos.
+    3.  Los datos recibidos se decodifican, se añaden a un `buffer`, y se procesan para extraer mensajes JSON completos (usando `\n` como delimitador).
+    4.  Cada mensaje JSON parseado se coloca en `self.message_queue` usando `self.message_queue.put(message)`. Esto es crucial para la **comunicación segura entre hilos**, ya que el hilo de red no debe interactuar directamente con los widgets de Tkinter.
+    5.  Maneja errores de conexión (ej., servidor desconectado) o de parsing JSON.
 
-#### 9. `handle_server_message(self, message: dict)` (Ejecutada en el hilo GUI)
+#### 7. `check_message_queue(self)` (Ejecutada periódicamente en el hilo principal de la GUI)
 
-*   **Propósito:** Reaccionar a los mensajes recibidos del servidor y actualizar la GUI y el estado del cliente.
-*   **Funcionamiento:** Un gran `if/elif` basado en `message.get("type")`:
-    *   **`ACK_CONFIG`**: Actualiza la barra de estado. Actualiza `self.num_workers_for_sim_display` con la cantidad confirmada por el servidor, que se usará para la visualización del Gantt simulado.
-    *   **`START_PROCESSING`**: Guarda la lista de `payload['files']` en `self.server_assigned_files`. Actualiza la barra de estado. Limpia resultados CSV anteriores. Llama a `self.display_file_selection_ui()` para mostrar los checkboxes de los archivos.
-    *   **`PROCESSING_COMPLETE`**: Actualiza la barra de estado. Si `status` es "success", guarda `payload['results']` en `self.server_results_for_csv`, llama a `self.display_server_results()`, y habilita el botón para guardar CSV. Si es "failure", muestra un error.
-    *   **`ACK_SUB` / `ACK_UNSUB`**: Actualiza `self.subscribed_events` y la etiqueta en la GUI.
-    *   **`SERVER_EXIT` / `ERROR` / `_THREAD_EXIT_`**: Muestra un mensaje y llama a `self.disconnect_server()`.
-*   **Concepto:** Manejo de eventos de red, actualización de la interfaz de usuario.
+*   **Propósito:** Procesar mensajes de la cola de mensajes de forma segura en el hilo principal de la GUI.
+*   **Funcionamiento:**
+    1.  Se llama periódicamente (`self.root.after(100, ...)`).
+    2.  Intenta obtener mensajes de `self.message_queue` usando `self.message_queue.get_nowait()` (no bloqueante).
+    3.  Si hay un mensaje, llama a `self.handle_server_message(message)` para procesarlo.
+    4.  Si la cola está vacía (`queue.Empty`), simplemente no hace nada hasta la siguiente llamada.
+    *   **Concepto: Patrón Productor-Consumidor (Hilos):** `listen_to_server` es el "productor" (pone mensajes en la cola), y `check_message_queue` es el "consumidor" (saca y procesa mensajes en el hilo de la GUI).
 
-### C. Lógica de Configuración del Cliente y Suscripción a Eventos
+#### 8. `handle_server_message(self, message: dict)` (Ejecutada en el hilo principal de la GUI)
 
-#### 10. `send_client_config(self)`
+*   **Propósito:** Interpretar y reaccionar a los mensajes recibidos del servidor.
+*   **Funcionamiento:**
+    *   Analiza el `msg_type` del mensaje recibido:
+        *   **`WELCOME`**: Mensaje inicial del servidor. Actualiza la barra de estado.
+        *   **`ACK_CONFIG`**: Confirma que el servidor recibió la configuración del cliente. Actualiza `self.num_workers_for_sim_display` para el Gantt.
+        *   **`ACK_SUB` / `ACK_UNSUB`**: Confirma suscripción/desuscripción. Actualiza `self.subscribed_events` y la etiqueta de suscripciones.
+        *   **`START_PROCESSING`**: El servidor informa que va a procesar un lote de archivos para este cliente. Guarda la lista de `payload['files']` en `self.server_assigned_files` y llama a `self.display_file_selection_ui()` para que el usuario elija qué simular.
+        *   **`PROCESSING_COMPLETE`**: El servidor ha terminado de procesar el lote de archivos real. Guarda `payload['results']` en `self.server_results_for_csv`, llama a `self.display_server_results()` y habilita el botón para guardar CSV.
+        *   **`SERVER_EXIT`**: El servidor se está cerrando. Muestra un mensaje y llama a `self.disconnect_server()`.
+        *   **`ERROR` / `_THREAD_EXIT_`**: Maneja errores de comunicación.
+    *   Todas las actualizaciones de la GUI se realizan aquí, ya que este método se ejecuta en el hilo principal, lo cual es seguro.
 
-*   **Propósito:** Enviar la configuración de modo (threads/forks) y cantidad al servidor.
-*   **Funcionamiento:** Obtiene los valores de `self.processing_mode_var` y `self.worker_count_var`. Valida que la cantidad sea positiva. Envía un mensaje `SET_CONFIG` al servidor. Actualiza `self.num_workers_for_sim_display` localmente (aunque el valor autoritativo para la simulación Gantt vendrá del `ACK_CONFIG`).
+### C. Configuración del Cliente y Suscripción a Eventos
 
-#### 11. `subscribe_event(self)` y `unsubscribe_event(self)`
+#### 9. `send_client_config(self)`
 
-*   **Propósito:** Enviar solicitudes de suscripción/desuscripción al servidor.
-*   **Funcionamiento:** Obtienen el nombre del evento de `self.event_name_var`. Validan. Envían mensajes `SUB` o `UNSUB`.
+*   **Propósito:** Recopilar la configuración de workers (modo: threads/forks, cantidad) del usuario y enviarla al servidor.
+*   **Funcionamiento:** Obtiene los valores de `self.processing_mode_var` y `self.worker_count_var`. Valida la cantidad y envía un mensaje `SET_CONFIG` al servidor.
 
-#### 12. `update_subscribed_label(self)`
+#### 10. `subscribe_event(self)`
 
-*   **Propósito:** Actualizar la etiqueta en la GUI que muestra a qué eventos está suscrito el cliente.
+*   **Propósito:** Suscribir al cliente a un evento específico en el servidor.
+*   **Funcionamiento:** Obtiene el nombre del evento de `self.event_name_var`, valida, y envía un mensaje `SUB` al servidor.
+
+#### 11. `unsubscribe_event(self)`
+
+*   **Propósito:** Desuscribir al cliente de un evento.
+*   **Funcionamiento:** Obtiene el nombre del evento (preferentemente del `ttk.Combobox` de eventos suscritos, o del campo de entrada). Valida si el cliente está suscrito y envía un mensaje `UNSUB` al servidor.
+
+#### 12. `on_event_selected_for_unsub(self, event=None)`
+
+*   **Propósito:** Listener para el `ttk.Combobox` de desuscripción.
+*   **Funcionamiento:** Cuando el usuario selecciona un evento en el combobox, actualiza el campo de entrada `self.event_name_var` para mayor comodidad.
+
+#### 13. `update_subscribed_label(self)`
+
+*   **Propósito:** Actualizar la etiqueta que muestra la lista de eventos a los que el cliente está suscrito, y también actualizar las opciones del `ttk.Combobox` de desuscripción.
 
 ### D. UI para Selección de Archivos y Parámetros de Simulación
 
-#### 13. `display_file_selection_ui(self)`
+#### 14. `display_file_selection_ui(self)`
 
-*   **Propósito:** Crear dinámicamente los `ttk.Checkbutton` para que el usuario seleccione qué archivos (de los asignados por el servidor) incluir en la simulación visual.
+*   **Propósito:** Mostrar los archivos que el servidor ha asignado a este cliente, permitiendo al usuario seleccionar cuáles quiere incluir en la simulación visual.
 *   **Funcionamiento:**
-    1.  Llama a `self.clear_file_selection_ui()` y `self.clear_parameter_input_ui()`.
-    2.  Si `self.server_assigned_files` está vacío, muestra un mensaje.
-    3.  Para cada `filename` en `self.server_assigned_files`:
-        *   Crea un `tk.BooleanVar(value=False)` (CORRECCIÓN: archivos deseleccionados por defecto).
-        *   Crea un `ttk.Checkbutton` asociado a esa variable, con el `filename` como texto.
-        *   Lo añade a `self.scrollable_files_frame`.
-        *   Guarda la `BooleanVar` en `self.files_for_simulation_vars` (mapeando `filename` a su variable).
-    4.  Habilita `self.confirm_files_button`.
-    5.  Ajusta la altura del `self.files_canvas` dinámicamente.
+    1.  Limpia las UIs de selección de archivos y de parámetros anteriores.
+    2.  Para cada archivo en `self.server_assigned_files`, crea un `ttk.Checkbutton` con `tk.BooleanVar(value=False)` (deseleccionado por defecto).
+    3.  Añade los checkboxes a `self.scrollable_files_frame` (dentro del `tk.Canvas` para scroll).
+    4.  Habilita el botón "Definir Parámetros".
+    5.  Ajusta dinámicamente la altura del `tk.Canvas` de archivos.
 
-#### 14. `clear_file_selection_ui(self)`
+#### 15. `clear_file_selection_ui(self)`
 
-*   **Propósito:** Eliminar todos los widgets del `self.scrollable_files_frame` (los checkboxes).
+*   **Propósito:** Eliminar todos los `ttk.Checkbutton` del área de selección de archivos.
 
-#### 15. `setup_parameter_input_ui(self)`
+#### 16. `setup_parameter_input_ui(self)`
 
-*   **Propósito:** Crear dinámicamente los `ttk.Entry` para que el usuario ingrese Arrival Time, Burst Time (y Prioridad) para cada archivo que *seleccionó* en el paso anterior.
+*   **Propósito:** Crear dinámicamente los campos de entrada (`ttk.Entry`) para que el usuario especifique el Arrival Time, Burst Time (y Prioridad) para cada archivo que seleccionó para la simulación.
 *   **Funcionamiento:**
-    1.  Llama a `self.clear_parameter_input_ui()`.
-    2.  Limpia datos de simulación previos (`self.processes_to_simulate`, `self.proc_tree_sim`).
-    3.  Obtiene la lista de `selected_files` de `self.files_for_simulation_vars`.
-    4.  Si no hay archivos seleccionados, muestra un mensaje y deshabilita el botón de iniciar simulación.
-    5.  Crea etiquetas de cabecera ("Archivo", "Llegada", "Ráfaga", "Prioridad") en `self.scrollable_params_frame`.
-    6.  Para cada `filename` en `selected_files`:
-        *   Asigna un `pid_sim` (simulado, solo para esta GUI).
-        *   Crea un `ttk.Frame` para la fila de entradas de este archivo.
-        *   Crea `tk.StringVar` para Arrival, Burst, Priority con valores por defecto.
-        *   Crea `ttk.Entry` asociados a estas `StringVar`.
-        *   Guarda las `StringVar` y el widget de `Entry` de prioridad en `self.process_params_entries` (mapeando `pid_sim` a un diccionario con estas variables/widgets). Esto permite luego acceder a los valores ingresados y controlar la visibilidad del campo de prioridad.
-    7.  Habilita `self.start_sim_button`.
-    8.  Llama a `self.change_scheduler_sim()` para ajustar la visibilidad de la columna/entrada de prioridad y el scroll.
-    9.  Ajusta la altura del `self.params_canvas` dinámicamente.
+    1.  Limpia la UI de parámetros anterior.
+    2.  Obtiene la lista de archivos seleccionados por el usuario.
+    3.  Crea etiquetas de cabecera para "Archivo", "Llegada", "Ráfaga" y "Prioridad".
+    4.  Para cada archivo seleccionado, crea una fila de `ttk.Entry` (vinculados a `tk.StringVar`) para sus parámetros.
+    5.  Almacena estas `tk.StringVar` y los widgets de prioridad en `self.process_params_entries` para poder acceder a los valores y controlar la visibilidad de la prioridad.
+    6.  Habilita el botón "Iniciar Simulación".
+    7.  Llama a `self.change_scheduler_sim()` para asegurar que la columna de prioridad se muestre/oculte correctamente según el algoritmo elegido.
+    8.  Ajusta dinámicamente la altura del `tk.Canvas` de parámetros.
+    9.  Almacena los `selected_files` en `self.selected_files_for_processing` para enviarlos al servidor más tarde.
 
-#### 16. `clear_parameter_input_ui(self)`
+#### 17. `clear_parameter_input_ui(self)`
 
-*   **Propósito:** Eliminar todos los widgets del `self.scrollable_params_frame` (las entradas de parámetros).
+*   **Propósito:** Eliminar todos los `ttk.Entry` del área de entrada de parámetros.
 
-### E. Lógica de Simulación Visual
+### E. Simulación Visual de Scheduling
 
-#### 17. `change_scheduler_sim(self, event=None)`
+#### 18. `change_scheduler_sim(self, event=None)`
 
-*   **Propósito:** Se llama cuando el usuario selecciona un nuevo algoritmo de scheduling en el `ttk.Combobox`.
+*   **Propósito:** Actualizar el algoritmo de scheduling que se usará en la simulación visual cuando el usuario selecciona uno en el `ttk.Combobox`.
 *   **Funcionamiento:**
-    1.  Obtiene el nombre del algoritmo.
-    2.  Busca la clase de scheduler correspondiente en `AVAILABLE_SCHEDULERS` (de `scheduler.py`).
-    3.  Crea una instancia del scheduler y la guarda en `self.scheduler_sim`. Si es "RR", también obtiene el valor del quantum del `self.quantum_spinbox`.
-    4.  Determina si el scheduler seleccionado requiere campos de "Prioridad" o "Quantum".
-    5.  Muestra u oculta las etiquetas/entradas de "Prioridad" en la UI de parámetros (`self.priority_header_label` y los `priority_entry_widget` individuales) y el `quantum_spinbox` según sea necesario.
-    6.  Actualiza la barra de estado.
+    1.  Obtiene el nombre del algoritmo seleccionado.
+    2.  Instancia la clase de scheduler correspondiente de `AVAILABLE_SCHEDULERS` (ej., `SchedulerFCFS()`, `SchedulerRR(quantum=...)`, `SchedulerPriorityNP()`).
+    3.  Actualiza `self.scheduler_sim`.
+    4.  Controla la visibilidad de la etiqueta y los campos de entrada para "Prioridad" y "Quantum" en la UI de parámetros, dependiendo del algoritmo seleccionado.
+    5.  Actualiza la barra de estado.
 
-#### 18. `start_simulation_visual(self)`
+#### 19. `start_simulation_visual(self)`
 
-*   **Propósito:** Iniciar o pausar la simulación visual.
+*   **Propósito:** Iniciar o pausar la simulación visual de scheduling.
 *   **Funcionamiento:**
     1.  Si la simulación no está corriendo:
-        *   Limpia datos de simulación previos (listas de procesos, tabla, Gantt).
-        *   Itera sobre `self.process_params_entries` para cada archivo que el usuario configuró:
-            *   Obtiene los valores de Arrival, Burst (y Priority) de las `tk.StringVar`.
-            *   Valida que Burst sea positivo.
-            *   Crea un objeto `Process` (de `process.py`) con estos datos.
-            *   Añade el objeto a `self.processes_to_simulate`.
-            *   Inserta una fila en la tabla `self.proc_tree_sim`.
-        *   Si la validación falla o no hay procesos, no inicia.
+        *   Limpia el estado de la simulación anterior (colas de procesos, tabla, Gantt).
+        *   Recopila los parámetros (Arrival, Burst, Priority) de los `ttk.Entry` que el usuario ingresó.
+        *   Crea objetos `Process` (de `process.py`) con estos parámetros y los añade a `self.processes_to_simulate`.
+        *   Inserta las filas iniciales en la tabla `self.proc_tree_sim`.
+        *   Valida la entrada (ej., ráfaga positiva).
         *   Establece `self.simulation_running_sim = True`.
-        *   Actualiza el texto del botón a "Pausar Sim. Visual".
-        *   Llama a `self.simulation_step_visual()` para el primer tick.
+        *   Actualiza el botón a "Pausar Sim. Visual".
+        *   Llama a `self.simulation_step_visual()` para iniciar el primer "tick".
+        *   **Envía `PROCESS_FILES` al servidor:** Una vez que la simulación visual comienza, envía los archivos que el usuario seleccionó para su simulación al servidor, pidiéndole que los procese realmente.
     2.  Si la simulación ya está corriendo (se presiona "Pausar"):
-        *   Establece `self.simulation_running_sim = False`.
-        *   Actualiza el texto del botón a "Reanudar Sim. Visual".
+        *   Establece `self.simulation_running_sim = False` y actualiza el botón.
 
-#### 19. `simulation_step_visual(self)` (El corazón de la simulación visual)
+#### 20. `simulation_step_visual(self)` (El corazón de la simulación visual)
 
-*   **Propósito:** Ejecutar un "tick" de la simulación visual. Se llama repetidamente mediante `root.after()`.
+*   **Propósito:** Ejecutar un solo paso (tick) de la simulación de scheduling. Se llama repetidamente usando `self.root.after()`.
 *   **Funcionamiento:**
-    1.  Si `self.simulation_running_sim` es `False`, no hace nada.
-    2.  Obtiene `current_time = self.simulation_time_sim`. Actualiza la etiqueta del tiempo.
-    3.  **Llegadas:** Mueve procesos de `self.processes_to_simulate` a `self.ready_queue_sim` si `arrival_time <= current_time`. Actualiza su estado.
-    4.  **Finalizaciones:** Itera sobre `self.running_processes_sim`. Si un proceso tiene `remaining_burst_time <= 0`, llama a `self.handle_process_completion_sim()`. Los que no terminan se mantienen.
-    5.  **Scheduling:**
-        *   Calcula `available_threads_sim` (basado en `self.num_workers_for_sim_display` que refleja la configuración del cliente y la cantidad actual en `self.running_processes_sim`).
-        *   Si el algoritmo lo requiere (ej. SJF), ordena `self.ready_queue_sim`.
-        *   Mientras haya `available_threads_sim` y procesos en `self.ready_queue_sim`:
-            *   Llama a `self.scheduler_sim.schedule(...)` para obtener el `next_process`. El método `schedule` del scheduler es responsable de quitar el proceso de la `ready_queue_sim` si lo selecciona.
-            *   Si se selecciona un proceso, se mueve a `self.running_processes_sim`, se actualiza su estado y `start_time`.
-    6.  **Ejecución Simulada y RR:**
-        *   Itera sobre `self.running_processes_sim`:
+    1.  Incrementa `self.simulation_time_sim`.
+    2.  **Llegadas:** Mueve procesos de `self.processes_to_simulate` a `self.ready_queue_sim` si su `arrival_time` es menor o igual al `current_time`.
+    3.  **Finalizaciones:** Identifica procesos en `self.running_processes_sim` que han terminado (`remaining_burst_time <= 0`) y llama a `self.handle_process_completion_sim()` para ellos.
+    4.  **Scheduling:**
+        *   Calcula `available_threads_sim` (basado en `self.num_workers_for_sim_display`).
+        *   Si el algoritmo es no-preemptivo (FCFS, SJF, HRRN, Priority_NP) y no hay procesos corriendo, se asegura de que el tiempo avance al `arrival_time` del siguiente proceso si la cola de listos está vacía.
+        *   Llama a `self.scheduler_sim.schedule()` para seleccionar el siguiente proceso(s) de la `self.ready_queue_sim`. El scheduler es responsable de ordenar la cola y sacar el proceso seleccionado.
+        *   Mueve los procesos seleccionados a `self.running_processes_sim` y actualiza su estado.
+    5.  **Ejecución Simulada y Manejo de RR:**
+        *   Para cada proceso en `self.running_processes_sim`:
             *   Decrementa `proc.remaining_burst_time`.
-            *   Registra el PID y el "thread simulado" (índice `i`) para el Gantt.
-            *   Actualiza la tabla.
-            *   **Para Round Robin (RR):** Si el scheduler es RR, incrementa un contador de `ticks_in_current_burst` para el proceso. Si este contador alcanza el `quantum` y el proceso aún no ha terminado, se añade a una lista `processes_to_requeue_rr`.
-        *   Si `processes_to_requeue_rr` no está vacía, mueve esos procesos de `running_processes_sim` de vuelta al final de `ready_queue_sim` y resetea su `ticks_in_current_burst`.
-    7.  Llama a `self.update_gantt_display_sim()`.
-    8.  Incrementa `self.simulation_time_sim`.
-    9.  **Comprueba Condición de Fin:** Si todas las listas de procesos (`processes_to_simulate`, `ready_queue_sim`, `running_processes_sim`) están vacías, la simulación termina. Se actualiza el botón, la barra de estado y se llama a `self.calculate_and_display_averages_sim()`.
-    10. Si no ha terminado, se reprograma con `self.root.after(self.simulation_update_ms, self.simulation_step_visual)`.
-*   **Concepto:** Simulación por eventos discretos (basada en ticks), implementación de la lógica de diferentes algoritmos de scheduling, interacción con objetos scheduler.
+            *   Actualiza la tabla de procesos.
+            *   Para Round Robin, gestiona el `ticks_in_current_burst` y mueve el proceso de vuelta a `self.ready_queue_sim` si su quantum expira y no ha terminado.
+    6.  **Actualización de Gantt:** Llama a `self.update_gantt_display_sim()`.
+    7.  **Comprobación de Fin:** Si todas las colas de procesos están vacías, la simulación termina. Se actualiza la GUI y se calculan los promedios.
+    8.  De lo contrario, se programa la siguiente llamada a `simulation_step_visual()` usando `self.root.after()`.
 
-#### 20. `handle_process_completion_sim(self, process: Process, completion_time: int)`
+#### 21. `handle_process_completion_sim(self, process: Process, completion_time: int)`
 
-*   **Propósito:** Se llama cuando un proceso simulado termina.
-*   **Funcionamiento:** Actualiza el estado del `process` a "Terminated", calcula `completion_time`, `turnaround_time`, `waiting_time`. Lo mueve a `self.completed_processes_sim`. Actualiza la fila en `self.proc_tree_sim`. **No hay procesamiento de archivo real aquí.**
+*   **Propósito:** Gestionar la finalización de un proceso en la simulación visual.
+*   **Funcionamiento:**
+    1.  Actualiza el estado del `process` a "Terminated".
+    2.  Calcula las métricas de rendimiento: `completion_time`, `turnaround_time`, `waiting_time`.
+    3.  Calcula y almacena las **fórmulas** para Turnaround y Waiting Time (`turnaround_formula`, `waiting_formula`).
+    4.  Añade el proceso a `self.completed_processes_sim`.
+    5.  Actualiza la fila correspondiente en `self.proc_tree_sim` con los tiempos y fórmulas finales.
 
-#### 21. `update_process_table_sim(self, pid_sim: int, updates: dict)`
+#### 22. `update_process_table_sim(self, pid_sim: int, updates: dict)`
 
 *   **Propósito:** Actualizar una fila específica en la tabla de procesos simulados (`self.proc_tree_sim`).
+*   **Funcionamiento:** Busca el `item_id` del proceso por su `pid_sim`. Si lo encuentra, actualiza las columnas especificadas en el diccionario `updates`. Si no existe, lo inserta (aunque esto no debería pasar si los procesos se añaden al inicio).
 
-#### 22. `update_gantt_display_sim(self, time_tick: int, running_pids_with_threads: list)`
+#### 23. `update_gantt_display_sim(self, time_tick: int, running_pids_with_threads: list)`
 
-*   **Propósito:** Añadir una nueva línea al `scrolledtext.ScrolledText` del Gantt simulado.
-*   **Funcionamiento:** Construye una cadena como `T=5: [T0:P1] [T1:Idle] ...` basada en `running_pids_with_threads` y `self.num_workers_for_sim_display`.
+*   **Propósito:** Dibujar un "tick" de la simulación en el diagrama de Gantt (`self.gantt_canvas`).
+*   **Funcionamiento:**
+    1.  En el `time_tick == 0`, inicializa el canvas (lo limpia, dibuja etiquetas de CPU/Thread).
+    2.  Dibuja líneas verticales para cada unidad de tiempo.
+    3.  Para cada proceso en `running_pids_with_threads`:
+        *   Asigna un color consistente al proceso (si no tiene uno ya) de una paleta predefinida.
+        *   Calcula las coordenadas (x1, y1, x2, y2) para un rectángulo que representa la ejecución del proceso en ese tick y en la "fila" de su CPU/Thread simulado.
+        *   Dibuja el rectángulo (`self.gantt_canvas.create_rectangle()`) y el texto del PID (`self.gantt_canvas.create_text()`).
+    4.  Actualiza el `scrollregion` del canvas.
+    5.  Implementa auto-scroll horizontal si la simulación se extiende mucho.
+    6.  Añade una leyenda de colores al Gantt después de unos pocos ticks.
 
-#### 23. `calculate_and_display_averages_sim(self)`
+#### 24. `calculate_and_display_averages_sim(self)`
 
-*   **Propósito:** Calcular y mostrar el Turnaround Time Promedio y Waiting Time Promedio de los procesos simulados.
+*   **Propósito:** Calcular el Turnaround Time Promedio y el Waiting Time Promedio de los procesos simulados que han completado su ejecución.
+*   **Funcionamiento:** Itera sobre `self.completed_processes_sim`, suma los tiempos y los divide por el número de procesos completados. Actualiza las etiquetas en la GUI.
 
 ### F. Resultados del Servidor y Guardado de CSV
 
-#### 24. `display_server_results(self)`
+#### 25. `display_server_results(self)`
 
-*   **Propósito:** Mostrar los resultados del procesamiento real (recibidos del servidor) en un `scrolledtext.ScrolledText`.
-*   **Funcionamiento:** Limpia el área de texto. Itera sobre `self.server_results_for_csv` y formatea cada resultado (nombre de archivo, estado, datos extraídos o mensaje de error) para mostrarlo.
+*   **Propósito:** Mostrar los resultados del procesamiento real de archivos (recibidos del servidor) en el `ttk.Treeview` de la pestaña "Resultados".
+*   **Funcionamiento:**
+    1.  Limpia la tabla `self.results_tree`.
+    2.  Itera sobre `self.server_results_for_csv` (la lista de diccionarios de resultados del servidor).
+    3.  Para cada resultado, extrae los datos relevantes (PID del servidor, nombre de archivo, nombres, lugares, fechas, conteo de palabras, estado, error).
+    4.  Formatea los datos (ej., uniendo listas con comas, truncando si son muy largos).
+    5.  Inserta una nueva fila en `self.results_tree` con estos valores.
+    6.  Actualiza la barra de estado.
 
-#### 25. `save_results_to_csv(self)`
+#### 26. `save_results_to_csv(self)`
 
-*   **Propósito:** Guardar los `self.server_results_for_csv` (que contienen los datos extraídos por el servidor) en un archivo CSV.
+*   **Propósito:** Guardar los resultados del procesamiento real (recibidos del servidor) en un archivo CSV local.
 *   **Funcionamiento:**
     1.  Abre `self.output_csv_path` en modo escritura (`'w'`).
     2.  Crea un `csv.writer`.
-    3.  Escribe `self.csv_headers`.
+    3.  Escribe `self.csv_headers` como la primera fila.
     4.  Itera sobre `self.server_results_for_csv`. Para cada resultado:
-        *   Extrae los datos relevantes (nombre de archivo, estado, datos específicos como emails, fechas, conteo de palabras, mensaje de error).
-        *   Construye una `row_to_write` que coincida con el orden de `self.csv_headers`.
-        *   Escribe la fila en el CSV.
-    5.  Muestra un mensaje de éxito o error.
-    *   **Importante:** La estructura de `self.csv_headers` y la forma en que se construye `row_to_write` deben coincidir con los datos que `server.py` (en `process_single_file_wrapper`) está enviando en el `payload` del mensaje `PROCESSING_COMPLETE`.
+        *   Extrae los datos relevantes, similar a `display_server_results`, pero los une con un delimitador (`|`) para el CSV.
+        *   Escribe la fila en el archivo CSV.
+    5.  Muestra un mensaje de éxito o error al usuario.
 
 ### G. Cierre de la Aplicación
 
-#### 26. `on_closing(self)`
+#### 27. `on_closing(self)`
 
-*   **Propósito:** Manejar el evento de cierre de la ventana principal.
-*   **Funcionamiento:** Pregunta al usuario si está seguro. Si confirma, llama a `self.disconnect_server()` y luego a `self.root.destroy()`.
-
----
+*   **Propósito:** Manejar el evento cuando el usuario intenta cerrar la ventana principal de la aplicación.
+*   **Funcionamiento:** Muestra un cuadro de diálogo de confirmación. Si el usuario confirma, intenta `self.disconnect_server()` (para cerrar la conexión limpiamente) y luego `self.root.destroy()` para cerrar la ventana.
